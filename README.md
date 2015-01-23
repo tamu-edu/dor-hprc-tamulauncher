@@ -11,5 +11,7 @@ Building:
 run make install
 will compile the c++ file and copy the files to ../bin
 
-NOTE: dont forget to load ictce module
+mpirun is hardcoded in tamulauncher and c++ lib is part of rpath
+
+
 
