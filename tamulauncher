@@ -1,0 +1,192 @@
+#!/bin/bash
+
+#check if script is run from LSF JOB
+if [ -z "${LSB_JOBID}" ]; then
+    echo "tamulauncher only runs from within batch job. Exiting now..."
+    exit
+fi
+
+launcher=/software/easybuild/software/impi/4.1.3.049/bin64/mpiexec.hydra
+exec=/software/tamusc/tamulauncher/bin/run-many-serial.x
+tamulauncherlog=/software/tamusc/tamulauncher/log/tamulauncher.log
+
+logdir="tamulauncher-log"
+finishedfile=${logdir}/finished
+processingfile=${logdir}/processing
+todofile=${logdir}/todo
+
+restart=0
+maxtasks=1000000
+
+date=`date`
+user=`whoami`
+
+
+NUMTASKS=0
+RESTART=0
+MPISTRING=""
+
+usage()
+{
+cat <<EOF
+Usage: $0 [options] FILE
+
+This script will execute commands in FILE concurrently. 
+
+OPTIONS:
+  -h Shows this message
+  -n <n> set the number of concurrent process
+  -e pass options verbatim to mpi launcher
+EOF
+}
+
+
+
+while getopts "n:e:h:?" OPT ; do
+    case $OPT in
+        n)
+            NUMTASKS=$OPTARG
+            if [[ $NUMTASKS != ${NUMTASKS//[^0-9]/} ]]; then
+               echo "Error: Value of -n should be numeric value between 0 and $maxtasks"
+               exit 1
+            fi
+            if (($NUMTASKS < 0 || $NUMTASKS > $maxtasks)); then
+               echo "Error: Value of -n should be between 0 and $maxtasks. Value found: $NUMTASKS"
+               exit 1
+            fi
+	    if (($NUMTASKS > $LSB_DJOB_NUMPROC)); then
+               echo "Error:  value of -n ($NUMTASKS} > specified #procs in batchfile ($LSB_DJOB_NUMPROC)"
+               exit 1
+            fi
+            ;;
+        e)
+            MPISTRING=$OPTARG
+            echo "Info: mpi arguments: $MPISTRING will be passed verbatim to mpi launcher."
+            ;;
+        h)  usage
+            ;;
+        ?)
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+
+# tamulauncher will take 1 parameter
+# $1 = name of input file containing commands
+shift $(( OPTIND-1 ))
+input=$1
+
+# check if input file exists.
+if [ !  -f $input ];
+then
+    echo "Cannot locate file $input. Exiting now..."
+    exit
+fi
+
+lsfprocs=$LSB_DJOB_NUMPROC
+
+# get the lsf job id, use this as part of the name of the log file
+jobid=${LSB_JOBID}
+
+
+# if MPISTRING not defined and -n param was set, need
+# to create MPI string with correct -np and -ppn setting
+if [ -z "$MPISTRING" ]; then
+    if (( $NUMTASKS > 0 )); then
+# get the number of lsf procs
+	lsfprocs=$NUMTASKS 
+    else
+	lsfprocs=$LSB_DJOB_NUMPROC
+    fi
+# for now assume span is always max 20
+# todo: extract correct ptile from: LSB_SUB_RES_REQ var =span[ptile=10]
+    if (( $lsfprocs > 20 )); then
+	ptile=20
+    else
+	ptile=$lsfprocs
+    fi
+    
+#compute number of mpi tasks to start per node
+    let "numnodes =  $lsfprocs/ $ptile"
+    let "ppn = $lsfprocs/$numnodes"
+
+    MPISTRING="-np $lsfprocs -perhost $ppn";
+fi
+
+if [ -d $logdir ]; then
+    restart=1
+fi
+
+echo "${jobid} # ${user} # START # ${date}  # ${restart} # ${MPISTRING}" >> ${tamulauncherlog}
+
+echo "CHECK 1: restart: $restart"
+
+# if this is a restart create a new todo list by combining
+# the non-executed commands from a previous run
+if (( $restart > 0 )); then
+
+    if [ -f ${finishedfile} ]; then
+        echo "All commands already have been executed"
+        echo "If you want to run anyway, remove the file ${finishedfile} and submit again"
+	echo "${jobid} # ${user} # EXIT (DONE) # ${date}  # ${restart} # ${MPISTRING}" >> ${tamulauncherlog}
+        exit
+    fi
+
+    if [ ! -f ${todofile} ]; then
+        echo "Warning: no file ${todofile} found for restart session"
+        echo "restart directory structure might be corrupted"
+    fi
+
+    # create a new todo file that only contains statements
+    # not processed the previous time
+
+
+    rm -f ${todofile}
+    for f in ${todofile}-*
+    do
+       # echo "processing: $f"
+       replace="done"
+       done="${f/todo/$replace}"
+
+       linestodo=`wc -l ${f} | cut -d" " -f1`
+
+       if [ -f ${done} ]; then
+          linesdone=`wc -l ${done} | cut -d" " -f1`
+       else
+	   echo "Warning: file ${done} not found"
+	   linesdone=0
+       fi
+
+       let "linediff = $linestodo - $linesdone"
+       if (($linediff > 0)); then
+	   tail -n $linediff $f >> ${todofile}
+       fi
+       rm -f $f $done
+  done
+else 
+    echo "CHECK 2"
+    mkdir ${logdir}
+    cp ${input} ${todofile}
+fi
+
+# the actual run command
+runcommand="${launcher} ${MPISTRING} ${exec} ${logdir} ${jobid}"
+
+
+# execute the commands
+echo ${runcommand}
+${runcommand}
+
+exitcode=$?
+
+echo "exitcode: $exitcode"
+# only do the post processing if runcommands finished correctly
+if [[ $exitcode == 0 ]]; then
+    touch ${finishedfile}
+    # combine the logs from all the tasks
+    cat ${logdir}/log-* > tamulauncher-log.${jobid}
+    echo "${jobid} # ${user} # DONE # ${date}" >> ${tamulauncherlog}
+fi
+
