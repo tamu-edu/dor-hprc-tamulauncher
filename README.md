@@ -12,6 +12,6 @@ run make install
 will compile the c++ file and copy the files to ../bin
 
 mpirun is hardcoded in tamulauncher and c++ lib is part of rpath
-
+see Makefile
 
 
