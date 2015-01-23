@@ -7,7 +7,13 @@ if [ -z "${LSB_JOBID}" ]; then
 fi
 
 launcher=/software/easybuild/software/impi/4.1.3.049/bin64/mpiexec.hydra
+
+#echo "DEMO MODE: run-many-serial.x in src dir is being used"
+#echo "DEMO MODE: run-many-serial.x in src dir is being used"
+#echo "DEMO MODE: run-many-serial.x in src dir is being used"
+#exec=/software/tamusc/tamulauncher/src-git/run-many-serial.x
 exec=/software/tamusc/tamulauncher/bin/run-many-serial.x
+
 tamulauncherlog=/software/tamusc/tamulauncher/log/tamulauncher.log
 
 logdir="tamulauncher-log"
@@ -121,7 +127,6 @@ fi
 
 echo "${jobid} # ${user} # START # ${date}  # ${restart} # ${MPISTRING}" >> ${tamulauncherlog}
 
-echo "CHECK 1: restart: $restart"
 
 # if this is a restart create a new todo list by combining
 # the non-executed commands from a previous run
@@ -166,7 +171,6 @@ if (( $restart > 0 )); then
        rm -f $f $done
   done
 else 
-    echo "CHECK 2"
     mkdir ${logdir}
     cp ${input} ${todofile}
 fi
@@ -180,10 +184,10 @@ echo ${runcommand}
 ${runcommand}
 
 exitcode=$?
+echo "EXITCODE $exitcode"
 
-echo "exitcode: $exitcode"
 # only do the post processing if runcommands finished correctly
-if [[ $exitcode == 0 ]]; then
+if [[ $exitcode == 21 ]]; then
     touch ${finishedfile}
     # combine the logs from all the tasks
     cat ${logdir}/log-* > tamulauncher-log.${jobid}

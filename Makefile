@@ -12,7 +12,6 @@ run-many-serial.x: run-many-serial.cpp
 install: run-many-serial.x
 	cp run-many-serial.x ../bin/
 	cp tamulauncher ../bin/
-	cp tamulauncher-local ../bin/
 
 clean:
 	rm -f run-many-serial.x *~

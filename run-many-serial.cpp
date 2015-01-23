@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
   // initialize MPI
   MPI::Init ( argc, argv );
 
-  // gets the task id
+  // get the task id
   int task_id = MPI::COMM_WORLD.Get_rank ( );
 
   // total number of tasks
@@ -30,11 +30,12 @@ int main(int argc, char* argv[]) {
   string workdir(argv[1]);
   string jobid(argv[2]);
 
+  // will store the commands this task will work on
   int num_commands;
   vector<string> commands;
   
   
-  char numstr[4]; // limit max task id to 9999
+  char numstr[5]; // limit max task id to 99999
   sprintf(numstr, "%d", task_id);
 
   // create all the file names
@@ -75,7 +76,6 @@ int main(int argc, char* argv[]) {
     std::div_t dv = std::div(commands_string.size(),num_tasks);
     int quotient = dv.quot; int remainder = dv.rem;
 
-    //cout << "#commands: " << commands_string.size() << ",   quotient: " << quotient << ", remainder: " << remainder << endl;
     int command_counter = 0;
     
     string task_todo_base = "tamulauncher/todo-";
@@ -90,21 +90,18 @@ int main(int argc, char* argv[]) {
       task_todo_file_name += "/todo-";
       task_todo_file_name += numstr;
       
-      cout << "task_todo: " << task_todo_file_name << endl;
-      
       // create the todo file
       ofstream task_todo_file;
       task_todo_file.open(task_todo_file_name);
       
       // compute the number of commands task 0 will excecute
       int task_num_commands = ( task_counter  < remainder ? quotient+1 : quotient);
-      
-      cout << "task: " << task_counter << "  : #commands " << task_num_commands << endl;
+
+      cout << "TASK: " << task_counter << "  : #COMMANDS " << task_num_commands << endl;
       for (int task_num_commands_counter = 0;
 	   task_num_commands_counter < task_num_commands; 
 	   task_num_commands_counter++) {
 	
-	//cout << command_counter<< ": " << commands_string[command_counter] << endl;
 	task_todo_file << commands_string[command_counter++] << endl;
 
       }
@@ -127,8 +124,6 @@ int main(int argc, char* argv[]) {
     MPI::COMM_WORLD.Recv(&mydummy,1 ,MPI_INT,0,0);
   }
 
-  
-  
   /*
     every task (including task 0 will read its part of the commands
     from file. It will also read the done file in.
@@ -143,7 +138,6 @@ int main(int argc, char* argv[]) {
   // read the commands
   ifstream todo_file;
   todo_file.open(todo_file_name.c_str());
-  //cout << "todo file: " << todo_file_name << endl;
 
   string line;
   getline(todo_file,line);
@@ -161,6 +155,7 @@ int main(int argc, char* argv[]) {
   ofstream log_file;
   log_file.open(log_file_name.c_str());
 
+
   /*
     Every task will start iterating over its commands and execute them
   */
@@ -172,24 +167,38 @@ int main(int argc, char* argv[]) {
     int ret = system(command.c_str());
     double tend = MPI::Wtime();
     
-    string msg = "[FAILED]";
-    string additional_msg = "";
-    if (WIFSIGNALED(ret) && (WTERMSIG(ret) == SIGINT || WTERMSIG(ret) == SIGQUIT)) {
-      additional_msg="(SIGINT or SIGQUIT detected)";
-    } else if (WCOREDUMP(ret)) {
-      additional_msg="(Core dump)";
-    } else if (ret != 0) {
-      additional_msg="(non-zero exit status)";
-    } else {
-      msg = "[SUCCESS]";
-    }
+    string msg = "";
 
+    // check if the command executed correctly, make sure
+    // it wasn't ckilled by the system
+    if (WIFSIGNALED(ret)) {
+      // command was interrupted by system
+      if (WTERMSIG(ret) == SIGINT || WTERMSIG(ret) == SIGQUIT) {
+	msg="[FAILED] (SIGINT or SIGQUIT detected)";
+      } else if (WCOREDUMP(ret)) {
+	msg="[FAILED] (core dump detected)";
+      } else {
+        msg="[FAILED] (unknown system signal received)";
+      }
+    } else if (WIFSTOPPED(ret)) { 
+      // command was stopped, not sure when that happens
+      msg="[FAILED] (command was stopped)";
+    } else if (WIFEXITED(ret)){
+      // command exited correctly
+      // can be clean exit or non zero exit
+      if (WEXITSTATUS(ret) == EXIT_SUCCESS)
+	msg = "[DONE] (command finished succesfully; EXIT_SUCCESS)";
+      else
+	msg = "[EXIT] (command finished with NON ZERO exit status)";
+      // no matter if command had non zero exit status
+      // need to update done_file
+      done_file << command << endl;
+    }
+    
     // print info
-    log_file << "Command: " << command << "\t" << msg << " " << additional_msg <<  
+    log_file << "Command: " << command << "\t" << msg <<  
       "\t time spent: (" << (tend-tstart) << " seconds)" << endl;
 
-    // don't forget to update the done file
-    done_file << command << endl;
   }
   
   // open the output file
@@ -198,7 +207,13 @@ int main(int argc, char* argv[]) {
 
   MPI::Finalize ( );
 
-  return 0;    
+  // sleep for 1 seconds. This is done to REDUCE chance
+  // the program returns with EXIT_SUCCESS  during the kill phase
+  // i.e. kill process is underway but kill to this executable
+  // not finished
+  sleep(3);
+
+  return 21;    
 }
 
 
