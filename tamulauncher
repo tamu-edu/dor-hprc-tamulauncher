@@ -108,15 +108,17 @@ if [ -z "$MPISTRING" ]; then
     fi
 # for now assume span is always max 20
 # todo: extract correct ptile from: LSB_SUB_RES_REQ var =span[ptile=10]
-    if (( $lsfprocs > 20 )); then
-	ptile=20
-    else
-	ptile=$lsfprocs
+    span=20
+    let "nodes=$LSB_DJOB_NUMPROC/$span"
+    if (($LSB_DJOB_NUMPROC % $span > 0)); then
+	let "nodes=$nodes+1"
     fi
-    
+
 #compute number of mpi tasks to start per node
-    let "numnodes =  $lsfprocs/ $ptile"
-    let "ppn = $lsfprocs/$numnodes"
+    let "ppn = $lsfprocs/$nodes"
+     if (($lsfprocs % $nodes > 0)); then
+        let "ppn=$ppn+1"
+    fi
 
     MPISTRING="-np $lsfprocs -perhost $ppn";
 fi
