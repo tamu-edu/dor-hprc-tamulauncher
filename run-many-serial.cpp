@@ -14,6 +14,18 @@
 
 using namespace std;
 
+// signal handler will send SIGINT to the current 
+// process and to all its children to make sure the
+// command that is being executed gets kill too
+// (normally system() comand ignores SIGNINT)
+void signal_handler(int signum) {
+  //  pid_t pid = getpid();
+  //std::cout << "Task " << MPI::COMM_WORLD.Get_rank() << " (pid "<< pid << ") received SIGINT. Sending SIGNINT to its children" << endl;
+  //kill(0-pid,SIGKILL);
+  //sleep(10);
+  //exit(signum);
+}
+
 
 int main(int argc, char* argv[]) {
   
@@ -135,6 +147,12 @@ int main(int argc, char* argv[]) {
     Part of todo.
   */
 
+
+  //setup the signal handler, needed to kill system() calls
+  //signal(SIGINT, signal_handler);
+  //signal(SIGQUIT,signal_handler);
+  //signal(SIGUSR2,signal_handler);
+
   // read the commands
   ifstream todo_file;
   todo_file.open(todo_file_name.c_str());
@@ -211,7 +229,7 @@ int main(int argc, char* argv[]) {
   // the program returns with EXIT_SUCCESS  during the kill phase
   // i.e. kill process is underway but kill to this executable
   // not finished
-  sleep(3);
+  // sleep(3);
 
   return 21;    
 }
