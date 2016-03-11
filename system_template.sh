@@ -1,0 +1,44 @@
+
+# this file contains functions to retrieve information
+# from batch run (e.g. number of procs) and defines some 
+# variables and paths
+
+#max number of cores per node
+maxppn=20
+
+
+# define the mpi lancher. Will just use mpirun. In past seems 
+# mpirun didn't respect I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
+# but seems to work fine now.
+launcher=<MPIRUN>
+
+
+#path to executable
+#exec=/software/tamusc/tamulauncher/src-git/run-many-serial.x
+exec=<TAMULAUNCHERBASE>/src-git/tamulauncher-loadbalanced.x
+
+#path to log file
+tamulauncherlog=<TAMULAUNCHERBASE>/log/tamulauncher.log
+
+function get_num_procs() 
+{
+	local myresult=$LSB_DJOB_NUMPROC
+	echo "$myresult"
+}
+
+function get_num_nodes() 
+{
+	local myresult
+        let "myresult=$LSB_DJOB_NUMPROC/$maxppn"
+        if (($LSB_DJOB_NUMPROC % $maxppn > 0)); then
+	   let "myresult=$myresult+1"
+        fi
+	echo "$myresult"
+}
+
+function get_job_id() 
+{
+	local myresult=$LSB_JOBID
+	echo "$myresult"
+}	
+

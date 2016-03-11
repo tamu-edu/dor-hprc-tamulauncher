@@ -1,0 +1,211 @@
+#!/bin/bash
+
+
+source <INCLUDE>
+
+# get the job id, use this as part of the name of the log file
+jobid=$(get_job_id)
+
+
+
+#check if script is run from with a batch job
+if [ -z "${jobid}" ]; then
+    echo "tamulauncher only runs from within batch job. Exiting now..."
+    exit
+fi
+
+
+# get the total number of processors requested in batch script
+procs=$(get_num_procs)
+
+# get the total number of processors requested in batch script
+nodes=$(get_num_nodes)
+
+restart=0
+maxtasks=1000000
+
+date=`date`
+user=`whoami`
+
+pass_taskid_string=""
+
+chunksize_string=""
+
+CHUNKS=0
+NUMTASKS=0
+PERNODE=0
+RESTART=0
+MPISTRING=""
+DEBUG=0
+
+usage()
+{
+cat <<EOF
+Usage: $0 [options] FILE
+
+This script will execute commands in FILE concurrently. 
+
+OPTIONS:
+  -c <n> set the chunk size (this is the number of commands each
+         task will execute per batch. Only use this option if 
+         there is significant difference in run time for commands.
+         Default: 100
+  -t     pass the task id to command. If this option is enabled it 
+         will add the task id as an additional parameter to each command.
+         This can be useful if commands need that information (e.g. when 
+         creating random seeds (otherwise all tasks might have the same seed).
+         NOTE: experimental, right now, only works correct when only one command
+         per line and no redirection to file (i.e. use > operator).
+
+  -n <n> set the number of concurrent processes.
+         The <n> processes will be distributed evenly 
+         over all the nodes.
+         NOTE: cannot use this option together with -p option.
+
+  -p <n> set the number of concurrent processes per node.
+         NOTE: cannot use this option together with -n option. 
+
+  -e     pass options verbatim to mpi launcher
+
+  -h Shows this message
+
+EOF
+}
+
+
+
+while getopts "tc:n:p:e:h:?" OPT ; do
+    case $OPT in
+        t)
+            pass_taskid_string="--add-taskid"
+            ;;
+        c)  CHUNKS=$OPTARG
+            if [[ $CHUNKS != ${CHUNKS//[^0-9]/} ]]; then
+               echo "Error: Value of -c should be numeric value"
+               exit 1
+            fi
+            if (($CHUNKS > $procs)); then
+               echo "Error:  value of -c ($CHUNKS} < #procs ($procs) requested in batchfile."
+               exit 1
+            fi
+            ;;
+        n)
+            NUMTASKS=$OPTARG
+            if [[ $NUMTASKS != ${NUMTASKS//[^0-9]/} ]]; then
+               echo "Error: Value of -n should be numeric value between 0 and $maxtasks"
+               exit 1
+            fi
+            if (($NUMTASKS < 0 || $NUMTASKS > $maxtasks)); then
+               echo "Error: Value of -n should be between 0 and $maxtasks. Value found: $NUMTASKS"
+               exit 1
+            fi
+	    if (($NUMTASKS > $procs)); then
+               echo "Error:  value of -n ($NUMTASKS} larger than #procs specified in batchfile ($procs)"
+               exit 1
+            fi
+            if (($PERNODE > 0)); then
+               echo "Warning: both -p and -n flags used. Will ignore -n flag."
+               NUMTASKS=0;
+            fi
+            ;;
+         p)
+            PERNODE=$OPTARG
+            if [[ $PERNODE != ${PERNODE//[^0-9]/} ]]; then
+               echo "Error: Value of -p should be numeric value between 0 and $maxppn"
+               exit 1
+            fi
+            if (($PERNODE < 0 || $PERNODE > $maxppn)); then
+               echo "Error: Value of -n should be between 0 and $maxppn. Value found: $PERNODE"
+               exit 1
+            fi
+	    if (($PERNODE > $procs)); then
+               echo "Error:  value of -n ($NUMTASKS} larger than #procs specified in batchfile ($procs)"
+               exit 1
+            fi
+            if (($NUMTASKS > 0)); then
+               echo "Warning: both -n and -p flags used. Will ignore -p flag."
+               PERNODE=0;
+            fi
+            ;;
+        e)
+            MPISTRING=$OPTARG
+            echo "Info: mpi arguments: $MPISTRING will be passed verbatim to mpi launcher."
+            ;;
+        d)
+            DEBUG=1
+            ;;
+        h)  usage
+            ;;
+        ?)
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+
+# tamulauncher will take 1 parameter
+# $1 = name of input file containing commands
+shift $(( OPTIND-1 ))
+input=$1
+
+# check if input file exists.
+if [ !  -f $input ];
+then
+    echo "Cannot locate file $input. Exiting now..."
+    exit
+fi
+
+
+# if the chunk size was not set it to 100
+# value of 100 is very arbitrary, need to find
+# a better way to do it
+if (( $CHUNKS < 1 )); then
+   CHUNKS=100
+fi
+ 
+chunksize_string="--chunk-size $CHUNKS"
+
+# if MPISTRING not defined and -n or -p param was set, need
+# to create MPI string with correct -np and -ppn setting
+if [ -z "$MPISTRING" ]; then
+    # by default start procs processes (maxppn per node)  
+    ppn=$maxppn
+    np=$procs
+    
+    # if NUMTASKS or PERNODE was set, adjust ppn and np
+    if (( $NUMTASKS > 0 )); then
+	np=$NUMTASKS 
+        #compute number of mpi tasks to start per node
+        let "ppn = $np/$nodes"
+        if (($np % $nodes > 0)); then
+           let "ppn=$ppn+1"
+        fi
+    elif (( $PERNODE > 0 )); then
+        ppn=$PERNODE 
+        let "np=$ppn*nodes"
+    fi
+    MPISTRING="-perhost $ppn -np $np ";
+fi
+
+
+#echo "${jobid} # ${user} # START # ${date}  # ${restart} # ${MPISTRING}" >> ${tamulauncherlog}
+
+
+
+# the actual run command
+runcommand="${launcher} ${MPISTRING} ${exec} ${pass_taskid_string} ${chunksize_string} ${input}"
+
+
+# need to set this var to make sure the -perhost option is respected, 
+# when running under batch, NOTE, only works when using mpiexec.hydra
+# will not work when using mpirun
+export I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
+
+# execute the commands
+echo ${runcommand}
+${runcommand}
+
+#exitcode=$?
+
+
