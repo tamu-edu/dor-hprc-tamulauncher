@@ -17,8 +17,6 @@
 
 using namespace std;
 
-typedef int (*pf)(int argc, char** argv);
-
 class run_command_type {
 
 private:
@@ -26,7 +24,7 @@ private:
   string command;
   int return_code;
   double run_time;
-  bool add_task_id;
+
 public:
 
   run_command_type(string& s) {
@@ -41,73 +39,25 @@ public:
 
   void execute(int add_task_id) {
     // tokenize
-    string buf;
-    stringstream ss(command);
-    vector<string> tokens;
-    while (ss >> buf)
-      tokens.push_back(buf);
-
-    // next transform string vector into char array array
-    int argc = tokens.size();
-    int argtotal = (add_task_id > 0 ? argc+1 : argc);
-    char* argv[argtotal];
-    for(int i = 0; i < tokens.size(); i++){
-      argv[i] = strdup(tokens[i].c_str());
-    }
-
+    string buf(command);
     
     if (add_task_id > 0) {
-      // we might need to add the task id
-      int task_id;
-      string tstring;
+      int task_id; 
       MPI_Comm_rank(MPI_COMM_WORLD,&task_id);
-      // char array to hold task id, can max value 999999
-      char task_num[7];
-      sprintf(task_num,"%d",task_id);
-      argv[argc] = strdup(task_num);
-      //argv[argc] = strdup(to_string(task_id).c_str());
-      ++argc;
+      string task_id_string = std::to_string(task_id);
+      buf.append(" ");
+      buf.append(task_id_string);
     }
     
-    // load the command and run it
-    void *lib;
-    pf run_function;
-    const char * err;
 
-    //printf("Trying to open %s\n",argv[0]);
-    lib=dlopen(argv[0], RTLD_NOW);
-    if (!lib) {
-      printf("failed to open %s\n %s \n",argv[0], dlerror());
-      this->return_code=-3;
-      return;
-    }
-
-    //printf("Trying to get symbol for main\n");
-    run_function= (pf) dlsym(lib, "main");
-    err=dlerror();
-    if (err) {
-      printf("%s doesn't seem to have a main function\n%s \n",argv[0], err);
-      this->return_code=-2;
-      return;
-    }
-
-    //printf("starting to execute command\n");
     double tstart = MPI::Wtime();
-    this->return_code = run_function(argc,argv);
+    this->return_code = system(buf.c_str());
     double tend = MPI::Wtime();
-    //printf("finished executing command\n");
     this->run_time = (tend-tstart);
-    dlclose(lib);
-
-    //printf("closed lib\n");
-    // don't forget to delete the argv elements
-    for(int i = 0; i < tokens.size(); i++){
-      delete [] argv[i];
-    }
-
-
+ 
   }
 };
+
 class task_info_type {
 
 private:
@@ -128,7 +78,7 @@ public:
 
 int pack_and_send(vector<string>& commands, int commands_index,
 		  vector<int>& processed, int* processed_index,
-		  int chunksize, bool add_task_id, int destination, 
+		  int chunksize, int destination, 
 		  task_info_type& task_info) {
 
 
@@ -164,13 +114,10 @@ int pack_and_send(vector<string>& commands, int commands_index,
       buffer.append(commands[commands_index]);
       task_info.add_indice(commands_index);
       
-      //std::cout << commands[commands_index] << "\n";
       ++commands_index;
       ++counter;
     }
   }
-
-  //std::cout<< "------------------------------------\n";
   
   // 2) send the number of elements this task will handle
   MPI_Send(&counter,1,MPI_INT,destination,0,MPI_COMM_WORLD);
@@ -223,9 +170,6 @@ bool receive_and_unpack(vector<string>& commands) {
 
 
 int main(int argc, char* argv[]) {
-  // argv[1] --> filename with commands
-  // argv[2] --> log filename base
-  
   // initialize MPI
   MPI_Init(&argc,&argv);
 
@@ -234,31 +178,35 @@ int main(int argc, char* argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD,&num_tasks);
   MPI_Comm_rank(MPI_COMM_WORLD,&task_id);
 
-  //printf("hello from task %d\n",task_id);
-
   if (task_id ==0) {
 
-    //for (int i=0;i<argc;++i) {
-    //printf("argv[%d]=%s\n",i,argv[i]);
-    //}
+    // possible flags:
+    //    "--add-taskid" 
+    //    "--chunk-size"
+    // NOTE: last argument has to be commands file
+    
     int add_task_id = 0;
-    int arg_count = 1;
-    // one possible flag "--add-task-id" can be added
-    // check if flag is used, and if so adjust counters
-    if (strcmp(argv[arg_count],"--add-task-id") == 0) {
-      add_task_id=true;
+
+    int chunksize = 1;
+    // first get the name of the commands  
+    string filename(argv[argc-1]);
+
+    // now iterate over all the arguments
+    int arg_count=1;
+    while (arg_count <argc-1) {
+      string next_command(argv[arg_count]);
+      if (next_command == "--add-taskid") {
+	add_task_id=1;
+      } else if (next_command == "--chunk-size") {
+	++arg_count;
+	chunksize= atoi(argv[arg_count]);
+      } else {
+	std::cout << "unrecognized flag: " << next_command << std::endl;
+      }
       ++arg_count;
     }
+    
 
-    //printf("task 0: %d :  %s\n",arg_count, argv[arg_count]);
-    string filename(argv[arg_count]);
-    //printf("task 0: %d : %s\n",arg_count, argv[arg_count]);
-    ++arg_count;
-    int chunksize=1;
-    if (arg_count < argc) {
-      chunksize= atoi(argv[arg_count]);
-    }
-    //printf("task 0: check\n");
     // read all the commands from file
     vector<string> commands;
     int commands_index=0;
@@ -311,23 +259,18 @@ int main(int argc, char* argv[]) {
     vector<task_info_type> task_info(num_tasks);
     // send info to all tasks, no matter if no commands left
 
-    //printf("task 0: before broadcast\n");
-    // first broadcast if task_id has to be included when
-    // executing the user function 
     MPI_Bcast(&add_task_id,1, MPI_INT, 0, MPI_COMM_WORLD);
-    //printf("task 0: after broadcast\n");
 
     int tasks_busy = num_tasks-1;
     for (int task_counter=1;task_counter<num_tasks;++task_counter) {
       task_info[task_counter].clear_indices();
       commands_index = pack_and_send(commands, commands_index,
 				     processed_commands, &processed_commands_index,
-				     chunksize,add_task_id, task_counter,task_info[task_counter]);
+				     chunksize, task_counter,task_info[task_counter]);
 
       if (commands_index == -1) {
 	--tasks_busy;
       }
-      //printf("task 0: commands_index=%d, tasks_busy=%d\n",commands_index,tasks_busy);
     }
 
 	   
@@ -347,7 +290,7 @@ int main(int argc, char* argv[]) {
       task_info[sender].clear_indices();
       commands_index = pack_and_send(commands, commands_index,
 				     processed_commands, &processed_commands_index,
-				     chunksize, add_task_id, sender,task_info[sender]);
+				     chunksize, sender,task_info[sender]);
       
       if (commands_index == -1) {
         --tasks_busy;
