@@ -24,6 +24,7 @@ install: scripts tamulauncher-loadbalanced.x run-many-serial.x
 	cp tamulauncher ../bin/tamulauncher
 	cp tamulauncher-loadbalanced.x ../bin
 	sed -i "s|src-git|bin|" ../bin/system.sh;
+	sed -i "s|src-git|bin|" ../bin/tamulauncher
 	cp tamulauncher-classic ../bin/
 	cp run-many-serial.x ../bin/
 
