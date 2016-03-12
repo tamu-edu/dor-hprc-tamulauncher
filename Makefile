@@ -13,7 +13,7 @@ run-many-serial.x: run-many-serial.cpp
 
 scripts:
 	cp system_template.sh system.sh;
-	sed -i "s|<MPIRUN>|`which mpirun`|" system.sh;
+	sed -i "s|<MPIRUN>|`which mpiexec.hydra`|" system.sh;
 	sed -i "s|<TAMULAUNCHERBASE>|`dirname ${PWD}`|" system.sh;
 	cp tamulauncher_template tamulauncher
 	sed -i "s|<INCLUDE>|`dirname ${PWD}`/src-git/system.sh|" tamulauncher;
