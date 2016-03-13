@@ -155,7 +155,7 @@ if (( $restart > 0 )); then
 
     if [ ! -f ${todofile} ]; then
         echo "Warning: no file ${todofile} found for restart session"
-        echo "restart directory structure might be corrupted"
+        echo "restart directory structure might be corrupted."
     fi
 
     # retrieve the job id from the previous run

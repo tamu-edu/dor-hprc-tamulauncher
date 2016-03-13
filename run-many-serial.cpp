@@ -63,6 +63,7 @@ int main(int argc, char* argv[]) {
   log_file_name += numstr;
   log_file_name += ".";
   log_file_name += jobid;
+
   
   if (task_id ==0) {
 
@@ -76,11 +77,15 @@ int main(int argc, char* argv[]) {
     input_file.open(input_file_name.c_str());
 
     string line;
-    getline(input_file,line);
-    while (! input_file.eof()) {
-      if ( ! line.empty())
-        commands_string.push_back(line);
+    if (input_file.is_open()) {
       getline(input_file,line);
+      while (! input_file.eof()) {
+	if ( ! line.empty())
+	  commands_string.push_back(line);
+	getline(input_file,line);
+      }
+    } else {
+      printf("task %d: warning, cannot open todo file\n",task_id);
     }
 
     // compute quotient and remainder for total num commands divided by num tasks
@@ -136,6 +141,7 @@ int main(int argc, char* argv[]) {
     MPI::COMM_WORLD.Recv(&mydummy,1 ,MPI_INT,0,0);
   }
 
+
   /*
     every task (including task 0 will read its part of the commands
     from file. It will also read the done file in.
@@ -158,13 +164,17 @@ int main(int argc, char* argv[]) {
   todo_file.open(todo_file_name.c_str());
 
   string line;
-  getline(todo_file,line);
-    while (! todo_file.eof()) {
-    if ( ! line.empty())
-      commands.push_back(line);
+  if (todo_file.is_open()) {
     getline(todo_file,line);
-     }
-  num_commands=commands.size();
+    while (! todo_file.eof()) {
+      if ( ! line.empty())
+	commands.push_back(line);
+      getline(todo_file,line);
+    }
+    num_commands=commands.size();
+  } else {
+    printf("task %d: warning: cannot open todo file\n",task_id);
+  }
 
   ofstream done_file;
   done_file.open(done_file_name);  
@@ -172,7 +182,6 @@ int main(int argc, char* argv[]) {
   // open the output file 
   ofstream log_file;
   log_file.open(log_file_name.c_str());
-
 
   /*
     Every task will start iterating over its commands and execute them

@@ -31,7 +31,7 @@ install: scripts tamulauncher-loadbalanced.x run-many-serial.x
 
 
 clean:
-	rm tamulauncher system.sh tamulauncher-loadbalanced.x run-many-serial.x
+	rm -f tamulauncher system.sh tamulauncher-loadbalanced.x run-many-serial.x
 
 purge: clean
 	rm ../bin/tamulauncher ../bin/system.sh ../bin/tamulauncher-loadbalanced.x 
