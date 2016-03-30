@@ -49,7 +49,7 @@ OPTIONS:
   -c <n> set the chunk size (this is the number of commands each
          task will execute per batch. Only use this option if 
          there is significant difference in run time for commands.
-         Default: 100
+         Default: 1
   -t     pass the task id to command. If this option is enabled it 
          will add the task id as an additional parameter to each command.
          This can be useful if commands need that information (e.g. when 
@@ -161,7 +161,7 @@ fi
 # value of 100 is very arbitrary, need to find
 # a better way to do it
 if (( $CHUNKS < 1 )); then
-   CHUNKS=100
+   CHUNKS=1
 fi
  
 chunksize_string="--chunk-size $CHUNKS"

@@ -14,7 +14,6 @@ launcher=<MPIRUN>
 
 
 #path to executable
-#exec=/software/tamusc/tamulauncher/src-git/run-many-serial.x
 exec=<TAMULAUNCHERBASE>/src-git/tamulauncher-loadbalanced.x
 
 #path to log file

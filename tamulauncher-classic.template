@@ -7,17 +7,11 @@ if [ -z "${LSB_JOBID}" ]; then
 fi
 
 
-# launcher has to be mpiexec.hydra. Cannot use mpirun since mpirun will
-# never respect -perhost option when running under batch system, even
-# when env var I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
-launcher=/software/easybuild/software/impi/5.0.3.048-iccifort-2015.2.164-GCC-4.9.2/bin64/mpiexec.hydra
+launcher=<MPIRUN>
 
+exec=<TAMULAUNCHERBASE>/src-git/run-many-serial.x
 
-#echo "DEMO MODE: run-many-serial.x in src dir is being used"
-#exec=/software/tamusc/tamulauncher/src-git/run-many-serial.x
-exec=/software/tamusc/tamulauncher/bin/run-many-serial.x
-
-tamulauncherlog=/software/tamusc/tamulauncher/log/tamulauncher.log
+tamulauncherlog=<TAMULAUNCHERBASE>/log/tamulauncher.log
 
 logdir="tamulauncher-log"
 oldlogs=${logdir}/old
