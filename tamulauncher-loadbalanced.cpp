@@ -206,6 +206,7 @@ int main(int argc, char* argv[]) {
       ++arg_count;
     }
     
+    printf("starting tamulauncher with chunk size: %d", chunksize);
 
     // read all the commands from file
     vector<string> commands;
