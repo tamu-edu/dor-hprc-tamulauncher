@@ -7,9 +7,12 @@
 maxppn=20
 
 
-# define the mpi lancher. Will just use mpirun. In past seems 
-# mpirun didn't respect I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
-# but seems to work fine now.
+# define the mpi lancher. Still has to be mpiexec.hydra right now
+# if use mpirun will complain cannot find mpiexec.hydra.
+# NOTE 1: before had to use mpiexec.hydra because mpirun didn't
+#         I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0, newer impi versions do
+# NOTE 2: there is an issue with mpiexec.hydra: it doesn't propagate
+#         ulimits to remote nodes.
 launcher=<MPIRUN>
 
 

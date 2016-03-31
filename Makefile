@@ -13,14 +13,14 @@ run-many-serial.x: run-many-serial.cpp
 
 scripts:
 	cp system.template system.sh;
-	sed -i "s|<MPIRUN>|`which mpirun`|" system.sh;
+	sed -i "s|<MPIRUN>|`which mpiexec.hydra`|" system.sh;
 	sed -i "s|<TAMULAUNCHERBASE>|`dirname ${PWD}`|" system.sh;
 	cp tamulauncher.template tamulauncher
 	sed -i "s|<INCLUDE>|`dirname ${PWD}`/src-git/system.sh|" tamulauncher;
 
 scripts-classic:
 	cp tamulauncher-classic.template tamulauncher-classic;
-	sed -i "s|<MPIRUN>|`which mpirun`|" tamulauncher-classic
+	sed -i "s|<MPIRUN>|`which mpiexec.hydra`|" tamulauncher-classic
 	sed -i "s|<TAMULAUNCHERBASE>|`dirname ${PWD}`|" tamulauncher-classic
 
 install: clean scripts scripts-classic tamulauncher-loadbalanced.x run-many-serial.x
