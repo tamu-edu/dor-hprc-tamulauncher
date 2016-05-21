@@ -1,5 +1,5 @@
 #include "mpi.h"
-
+  
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -21,34 +21,39 @@ class run_command_type {
 
 private:
 
+  int command_index;
   string command;
   int return_code;
   double run_time;
 
 public:
 
-  run_command_type(string& s) {
+  run_command_type(string s,int index) {
+    command_index=index;
     command = s;
-    return_code=-1;
-    run_time=0.0;
   }
 
   double get_runtime() {return run_time;}
  
   int get_return_code() {return return_code;}
 
-  void execute(int add_task_id) {
+  int get_command_index() {return command_index;}
+
+  void execute() {
     // tokenize
-    string buf(command);
-    
-    if (add_task_id > 0) {
-      int task_id; 
-      MPI_Comm_rank(MPI_COMM_WORLD,&task_id);
-      string task_id_string = std::to_string(task_id);
-      buf.append(" ");
-      buf.append(task_id_string);
-    }
-    
+    string buf("");
+
+    int task_id; 
+    MPI_Comm_rank(MPI_COMM_WORLD,&task_id);
+    string task_id_string = std::to_string(task_id);
+    string command_index_string=std::to_string(command_index);
+    buf.append("export TAMULAUNCHER_TASK_ID=");
+    buf.append(task_id_string);
+    buf.append("; export TAMULAUNCHER_COMMAND_ID=");
+    buf.append(command_index_string);
+    buf.append("; ");
+    buf.append(command);
+
 
     double tstart = MPI::Wtime();
     this->return_code = system(buf.c_str());
@@ -56,21 +61,7 @@ public:
     this->run_time = (tend-tstart);
  
   }
-};
 
-class task_info_type {
-
-private:
-
-  vector<int> ind;
-  
-public:
-
-  void add_indice(int i) {ind.push_back(i);}
-
-  void clear_indices() { ind.clear();}
-
-  const vector<int>& indices() {return ind;}
 };
 
 
@@ -78,8 +69,7 @@ public:
 
 int pack_and_send(vector<string>& commands, int commands_index,
 		  vector<int>& processed, int* processed_index,
-		  int chunksize, int destination, 
-		  task_info_type& task_info) {
+		  int chunksize, int destination) {
 
 
   int counter = 0;
@@ -91,12 +81,11 @@ int pack_and_send(vector<string>& commands, int commands_index,
     return commands_index;
   }
 
+  int commands_index_list[chunksize];
   string buffer = "";
   int line_lenghts[chunksize];
   // compute the real chunksize
 
-  //std::cout << "\nsending next command to task " << destination << "\n";
-  //std::cout<< "------------------------------------\n";
   while (counter < chunksize && 
 	 commands_index < num_commands) {
 
@@ -104,15 +93,14 @@ int pack_and_send(vector<string>& commands, int commands_index,
     while (*processed_index<num_processed &&
 	   commands_index == processed[*processed_index] &&
 	   commands_index < num_commands) {
-
       ++commands_index;
       ++(*processed_index);
     }
 
     if (commands_index < num_commands) {
+      commands_index_list[counter]=commands_index;
       line_lenghts[counter] = commands[commands_index].length();
       buffer.append(commands[commands_index]);
-      task_info.add_indice(commands_index);
       
       ++commands_index;
       ++counter;
@@ -123,6 +111,8 @@ int pack_and_send(vector<string>& commands, int commands_index,
   MPI_Send(&counter,1,MPI_INT,destination,0,MPI_COMM_WORLD);
 
   if (counter > 0) {
+    // send the index for every command
+    MPI_Send(&commands_index_list,counter,MPI_INT,destination,0,MPI_COMM_WORLD);
     // 3) send array containing lengths of every command
     MPI_Send(&line_lenghts,counter,MPI_INT,destination,0,MPI_COMM_WORLD);
     // 4) send packed string
@@ -133,7 +123,7 @@ int pack_and_send(vector<string>& commands, int commands_index,
   return commands_index;
 }
 
-bool receive_and_unpack(vector<string>& commands) {
+bool receive_and_unpack(vector<run_command_type>& commands) {
 
   bool received = false;
   int num_commands=0;
@@ -141,9 +131,12 @@ bool receive_and_unpack(vector<string>& commands) {
 
   // receive the number of commands this task will handle
   MPI_Recv(&num_commands,1 ,MPI_INT,0,0,MPI_COMM_WORLD,&status);
-
   if (num_commands > 0) {
     received = true;
+
+    // receive array containing lenghts per command
+    int command_indices[num_commands];
+    MPI_Recv(&command_indices,num_commands,MPI_INT,0,0,MPI_COMM_WORLD,&status);
     // receive array containing lenghts per command
     int command_lenghts[num_commands];
     MPI_Recv(&command_lenghts,num_commands,MPI_INT,0,0,MPI_COMM_WORLD,&status);
@@ -152,15 +145,16 @@ bool receive_and_unpack(vector<string>& commands) {
     // sum of command lenghts
     int total =0; for (int i=0;i<num_commands;++i) total += command_lenghts[i];
     
-    char buf[total];
-    MPI_Recv(&buf,total,MPI_CHAR,0,0,MPI_COMM_WORLD,&status);
+    char buff[total];
+    MPI_Recv(&buff,total,MPI_CHAR,0,0,MPI_COMM_WORLD,&status);
     
     // next step is to unpack the command string
-    string command_string = buf;
+    string command_string = buff;
     
     int index = 0;
     for (int i = 0; i<num_commands;++i) {
-      commands.push_back(command_string.substr(index,command_lenghts[i]));
+      run_command_type run_command(command_string.substr(index,command_lenghts[i]),command_indices[i]);
+      commands.push_back(run_command);
       index += command_lenghts[i];
     }
   }
@@ -180,12 +174,9 @@ int main(int argc, char* argv[]) {
 
   if (task_id ==0) {
 
-    // possible flags:
-    //    "--add-taskid" 
+    // possible flags: 
     //    "--chunk-size"
     // NOTE: last argument has to be commands file
-    
-    int add_task_id = 0;
 
     int chunksize = 1;
     // first get the name of the commands  
@@ -195,9 +186,7 @@ int main(int argc, char* argv[]) {
     int arg_count=1;
     while (arg_count <argc-1) {
       string next_command(argv[arg_count]);
-      if (next_command == "--add-taskid") {
-	add_task_id=1;
-      } else if (next_command == "--chunk-size") {
+      if (next_command == "--chunk-size") {
 	++arg_count;
 	chunksize= atoi(argv[arg_count]);
       } else {
@@ -205,11 +194,17 @@ int main(int argc, char* argv[]) {
       }
       ++arg_count;
     }
-    
-    printf("starting tamulauncher with chunk size: %d", chunksize);
+
+    //printf("starting tamulauncher with chunk size: %d", chunksize);
 
     // read all the commands from file
     vector<string> commands;
+
+    // since we will start counting from 1 instead of 0, set the first element
+    // to a dummy empty string
+    //string dummy("");
+    //commands.push_back(dummy);
+
     int commands_index=0;
 
     ifstream in;    
@@ -234,21 +229,22 @@ int main(int argc, char* argv[]) {
       while (! processed_file_read.eof()) {
 	next_processed=-1;
 	processed_file_read >> next_processed;
-	if (next_processed != -1)
+	if (next_processed != -1) 
 	  processed_commands.push_back(next_processed);
       }
     }
     processed_file_read.close();
-
     ofstream processed_file(".tamulauncher.processed",std::ios_base::app);
     int processed_commands_index=0;
 
     // if #commands equals #processed_commands set commands_index to -1
     // no need for any computation.
     if (commands.size() == processed_commands.size()) {
+      cout << "\n\n===========================================================\n";
       cout << "All commands have been processed.\n" << 
 	"If you think this is a mistake and/or want to redo your run\n"<< 
 	"remove file .tamulauncher.processed and run again\n";
+      cout << "===========================================================\n\n\n";
       commands_index=-1;
     }
     
@@ -257,17 +253,12 @@ int main(int argc, char* argv[]) {
 
     ofstream log_file("tamulauncher.log",std::ios_base::app);
 
-    vector<task_info_type> task_info(num_tasks);
-    // send info to all tasks, no matter if no commands left
-
-    MPI_Bcast(&add_task_id,1, MPI_INT, 0, MPI_COMM_WORLD);
 
     int tasks_busy = num_tasks-1;
     for (int task_counter=1;task_counter<num_tasks;++task_counter) {
-      task_info[task_counter].clear_indices();
       commands_index = pack_and_send(commands, commands_index,
 				     processed_commands, &processed_commands_index,
-				     chunksize, task_counter,task_info[task_counter]);
+				     chunksize, task_counter);
 
       if (commands_index == -1) {
 	--tasks_busy;
@@ -281,30 +272,37 @@ int main(int argc, char* argv[]) {
     while (tasks_busy > 0) {
       int myr = MPI_Recv(&return_codes_size,1 ,MPI_INT,MPI_ANY_SOURCE,0,MPI_COMM_WORLD,&status);
       int sender = status.MPI_SOURCE;
+
+      int command_indices[return_codes_size];
       int return_codes[return_codes_size];
       double runtimes[return_codes_size];
+      
+      MPI_Recv(&command_indices,return_codes_size ,MPI_INT,sender,0,MPI_COMM_WORLD,&status);
       MPI_Recv(&return_codes,return_codes_size ,MPI_INT,sender,0,MPI_COMM_WORLD,&status);
       MPI_Recv(&runtimes,return_codes_size ,MPI_DOUBLE,sender,0,MPI_COMM_WORLD,&status);
       // get a copy of the processed commands
-      vector<int> processed(task_info[sender].indices());
-
-      task_info[sender].clear_indices();
+ 
       commands_index = pack_and_send(commands, commands_index,
 				     processed_commands, &processed_commands_index,
-				     chunksize, sender,task_info[sender]);
+				     chunksize, sender);
       
       if (commands_index == -1) {
         --tasks_busy;
       }
       
-      if (processed.size() != return_codes_size) {
-	printf("size of processed elements: %d, size of return codes: %d\n",processed.size(),return_codes_size);
-      }
+
       for (int pcount=0;pcount<return_codes_size;++pcount) {
-        const int next = processed[pcount];
-        processed_file << next <<"\n";
-        processed_file.flush();
-	log_file << commands[next] << " :: time spent: " << runtimes[pcount] << 
+	int ret_signal = return_codes[pcount];
+	if (WIFSIGNALED(ret_signal) && WTERMSIG(ret_signal) == SIGUSR2) {
+	  // process was killed with USR2, most likely because got killed by LSF
+	  // will decide later what to do. Definitely should not be added to list
+	  // of processed commands.
+	} else {
+	  processed_file << command_indices[pcount] <<"\n";
+	  processed_file.flush();
+	}
+
+	log_file << command_indices[pcount] << " :: " << commands[command_indices[pcount]] << " :: time spent: " << runtimes[pcount] << 
 	  " :: return code: " << return_codes[pcount] << "\n";
 	log_file.flush();
       }
@@ -314,37 +312,32 @@ int main(int argc, char* argv[]) {
 
   } else {
 
-    // first thing to do is receive broadcast indicating if task_id should be 
-    // added to every command
-    int add_task_id;
-    MPI_Bcast(&add_task_id,1, MPI_INT, 0, MPI_COMM_WORLD);
-
-    vector<string> commands;
+    vector<run_command_type> commands;
     int return_codes_size =0;
     bool received = true;
     while (received) {
       commands.clear();
-	//printf("task %d calling received_unpack\n",task_id);
       received = receive_and_unpack(commands);
-      //printf("task %d received %d elements\n",task_id,commands.size());
+      int command_indices[commands.size()];
       int return_codes[commands.size()];
       double runtimes[commands.size()];
       if (received) {
 	int counter=0;
-	for (vector<string>::iterator it=commands.begin();it!=commands.end();++it,++counter) {
-	  run_command_type run_command(*it);
-	  run_command.execute(add_task_id);
+	for (vector<run_command_type>::iterator it=commands.begin();it!=commands.end();++it,++counter) {
+	  run_command_type& run_command = *it;
+	  run_command.execute();
 	  int rc = run_command.get_return_code();
 	  double rt = run_command.get_runtime();
+	  command_indices[counter]=run_command.get_command_index();
 	  return_codes[counter]=rc;
 	  runtimes[counter]=rt;
 	}
 	return_codes_size = commands.size();
-	//printf("[%d] task calling send\n",task_id);
 	MPI_Send(&return_codes_size,1,MPI_INT,0,0,MPI_COMM_WORLD);
+
+	MPI_Send(&command_indices,return_codes_size,MPI_INT,0,0,MPI_COMM_WORLD);
 	MPI_Send(&return_codes,return_codes_size,MPI_INT,0,0,MPI_COMM_WORLD);
 	MPI_Send(&runtimes,return_codes_size,MPI_DOUBLE,0,0,MPI_COMM_WORLD);
-	//printf("[%d] task finished calling send\n",task_id);
       }
     }
   }   

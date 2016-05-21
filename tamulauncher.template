@@ -3,23 +3,6 @@
 
 source <INCLUDE>
 
-# get the job id, use this as part of the name of the log file
-jobid=$(get_job_id)
-
-
-
-#check if script is run from with a batch job
-if [ -z "${jobid}" ]; then
-    echo "tamulauncher only runs from within batch job. Exiting now..."
-    exit
-fi
-
-
-# get the total number of processors requested in batch script
-procs=$(get_num_procs)
-
-# get the total number of processors requested in batch script
-nodes=$(get_num_nodes)
 
 restart=0
 maxtasks=1000000
@@ -157,6 +140,23 @@ then
 fi
 
 
+
+# get the job id, use this as part of the name of the log file
+jobid=$(get_job_id)
+
+#check if script is run from with a batch job
+if [ -z "${jobid}" ]; then
+    echo "tamulauncher only runs from within batch job. Exiting now..."
+    exit
+fi
+
+# get the total number of processors requested in batch script
+procs=$(get_num_procs)
+
+# get the total number of processors requested in batch script
+nodes=$(get_num_nodes)
+
+
 # if the chunk size was not set it to 100
 # value of 100 is very arbitrary, need to find
 # a better way to do it
@@ -198,8 +198,7 @@ runcommand="${launcher} ${MPISTRING} ${exec} ${pass_taskid_string} ${chunksize_s
 
 
 # need to set this var to make sure the -perhost option is respected, 
-# when running under batch, NOTE, only works when using mpiexec.hydra
-# will not work when using mpirun
+# when running under batch.
 export I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
 
 # execute the commands

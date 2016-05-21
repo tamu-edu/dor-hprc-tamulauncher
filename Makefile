@@ -1,7 +1,7 @@
 MPICXX=mpiicpc
 
 CXXFLAGS=-std=c++0x
-OPT=-O2
+OPT=-O2 -g
 
 default: scripts tamulauncher-loadbalanced.x
 
