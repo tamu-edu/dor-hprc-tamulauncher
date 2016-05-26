@@ -13,13 +13,14 @@ user=`whoami`
 pass_taskid_string=""
 
 chunksize_string=""
+rerun_string=""
 
 CHUNKS=0
 NUMTASKS=0
 PERNODE=0
 RESTART=0
 MPISTRING=""
-DEBUG=0
+RERUN=0
 
 usage()
 {
@@ -33,13 +34,9 @@ OPTIONS:
          task will execute per batch. Only use this option if 
          there is significant difference in run time for commands.
          Default: 1
-  -t     pass the task id to command. If this option is enabled it 
-         will add the task id as an additional parameter to each command.
-         This can be useful if commands need that information (e.g. when 
-         creating random seeds (otherwise all tasks might have the same seed).
-         NOTE: experimental, right now, only works correct when only one command
-         per line and no redirection to file (i.e. use > operator).
 
+  -s     rerun commands that received a kill signal in a previous 
+         run (e.g. memory error, division by 0, etc). 
   -n <n> set the number of concurrent processes.
          The <n> processes will be distributed evenly 
          over all the nodes.
@@ -57,11 +54,8 @@ EOF
 
 
 
-while getopts "tc:n:p:e:h:?" OPT ; do
+while getopts "tc:sn:p:e:h:?" OPT ; do
     case $OPT in
-        t)
-            pass_taskid_string="--add-taskid"
-            ;;
         c)  CHUNKS=$OPTARG
             if [[ $CHUNKS != ${CHUNKS//[^0-9]/} ]]; then
                echo "Error: Value of -c should be numeric value"
@@ -72,7 +66,12 @@ while getopts "tc:n:p:e:h:?" OPT ; do
                exit 1
             fi
             ;;
+        s)
+	    RERUN=1
+	    ;;
         n)
+	    echo "DEPRECATED: The -n flag will be removed in a future version."
+	    echo "            Use the -p flag to specify the #concurrent processes per node"
             NUMTASKS=$OPTARG
             if [[ $NUMTASKS != ${NUMTASKS//[^0-9]/} ]]; then
                echo "Error: Value of -n should be numeric value between 0 and $maxtasks"
@@ -114,14 +113,12 @@ while getopts "tc:n:p:e:h:?" OPT ; do
             MPISTRING=$OPTARG
             echo "Info: mpi arguments: $MPISTRING will be passed verbatim to mpi launcher."
             ;;
-        d)
-            DEBUG=1
-            ;;
         h)  usage
+	    exit 0
             ;;
         ?)
             usage
-            exit 1
+            exit 0
             ;;
     esac
 done
@@ -157,9 +154,11 @@ procs=$(get_num_procs)
 nodes=$(get_num_nodes)
 
 
-# if the chunk size was not set it to 100
-# value of 100 is very arbitrary, need to find
-# a better way to do it
+if (($RERUN > 0)); then
+   rerun_string="--rerun-killed-commands"
+fi
+
+# if the chunk size was not set it to 1
 if (( $CHUNKS < 1 )); then
    CHUNKS=1
 fi
@@ -194,7 +193,7 @@ fi
 
 
 # the actual run command
-runcommand="${launcher} ${MPISTRING} ${exec} ${pass_taskid_string} ${chunksize_string} ${input}"
+runcommand="${launcher} ${MPISTRING} ${exec} ${chunksize_string} ${rerun_string} ${input}"
 
 
 # need to set this var to make sure the -perhost option is respected, 

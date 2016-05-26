@@ -5,8 +5,8 @@ OPT=-O2 -g
 
 default: scripts tamulauncher-loadbalanced.x
 
-tamulauncher-loadbalanced.x: tamulauncher-loadbalanced.cpp
-	$(MPICXX) $(CXXFLAGS) $(OPT)  -o $@ $<
+tamulauncher-loadbalanced.x: run_command_type.cpp commands_type.cpp tamulauncher-loadbalanced.cpp 
+	$(MPICXX) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^
 
 run-many-serial.x: run-many-serial.cpp
 	$(MPICXX) $(CXXFLAGS) $(OPT)  -o $@ $<

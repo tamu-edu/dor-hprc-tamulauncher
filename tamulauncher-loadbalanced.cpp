@@ -15,130 +15,12 @@
 #include <dlfcn.h>
 
 
+#include "run_command_type.hpp"
+#include "commands_type.hpp"
+
 using namespace std;
 
-class run_command_type {
 
-private:
-
-  int command_index;
-  string command;
-  int return_code;
-  double run_time;
-
-public:
-
-  run_command_type(string s,int index) {
-    command_index=index;
-    command = s;
-  }
-
-  string& get_command_string() { return command;}
-  
-  int get_index() {return command_index;}
-
-  double get_runtime() {return run_time;}
-
-  int get_return_code() {return return_code;}
-
-  void execute() {
-    // tokenize                                                                                                                                            
-    string buf("");
-
-    int task_id;
-    MPI_Comm_rank(MPI_COMM_WORLD,&task_id);
-    string task_id_string = std::to_string(task_id);
-    string command_index_string=std::to_string(command_index);
-    buf.append("export TAMULAUNCHER_TASK_ID=");
-    buf.append(task_id_string);
-    buf.append("; export TAMULAUNCHER_COMMAND_ID=");
-    buf.append(command_index_string);
-    buf.append("; ");
-    buf.append(command);
-
-    double tstart = MPI::Wtime();
-    this->return_code = system(buf.c_str());
-    double tend = MPI::Wtime();
-    this->run_time = (tend-tstart);
-
-  }
-
-};
-
-
-class commands_type {
-  
-private:
-  
-  // note: commands_index should start at -1
-  // proceed method will increase it to 0 during init
-  int commands_index=-1;
-
-  vector<run_command_type> commands;
-  vector<bool> enabled_commands;
-  vector<int> processed_commands;
-  
-public:
-  
-  commands_type() {
-    // nothing to do for now
-  }
-  
-  void push_command(string& str) {
-    run_command_type cmd(str,commands.size());
-    commands.push_back(cmd);
-  }
-  
-  void push_processed(int index) {
-    processed_commands.push_back(index);
-  }
-  
-  
-  void proceed_next() {
-    // need to move the index at least 1;
-    ++commands_index;
-    while (commands_index < commands.size() &&
-	   enabled_commands[commands_index] == false) {
-      ++commands_index;
-    }
-  }
-  
-  void init() {
-    // by default all commands will be enabled
-    enabled_commands.resize(commands.size());
-    fill(enabled_commands.begin(),enabled_commands.end(),true);
-
-    // disable all commands that have been processed
-    for (vector<int>::iterator it=processed_commands.begin(); it != processed_commands.end(); ++it) {
-      enabled_commands[(*it)]=false;
-    }
-    // disable all commands that start with a #
-    for (int count=0;count<commands.size();++count) {
-      const string& cmd = commands[count].get_command_string();
-      if (cmd.length() > 0 && cmd.at(0) == '#') {
-
-        enabled_commands[count]=false;
-      }
-    }
-    // set commands_index to first enabled command
-    proceed_next();
-  }
-
-
-  bool has_next() {
-    return (commands_index != commands.size());
-  }
-
-  run_command_type& get_command() {
-    return commands[commands_index];
-  }
-    
-  run_command_type& get_command(int index) {
-    return commands[index];
-  }
-  
-};
-  
 
 bool pack_and_send(commands_type& commands,
 		   int chunksize, 
@@ -240,6 +122,7 @@ int main(int argc, char* argv[]) {
     //    "--chunk-size"
     // NOTE: last argument has to be commands file
 
+    bool rerun_signaled =false;
     int chunksize = 1;
     // first get the name of the commands  
     string filename(argv[argc-1]);
@@ -251,51 +134,21 @@ int main(int argc, char* argv[]) {
       if (next_command == "--chunk-size") {
 	++arg_count;
 	chunksize= atoi(argv[arg_count]);
+      } else if (next_command == "--rerun-killed-commands") {
+	rerun_signaled =true;
       } else {
 	std::cout << "unrecognized flag: " << next_command << std::endl;
       }
       ++arg_count;
     }
 
-    commands_type commands;
+    commands_type commands(filename,rerun_signaled);
+    
 
-
-    ifstream in;    
-    in.open(filename.c_str());  
-    string line;
-    getline(in,line);
-    while (! in.eof()) {
-      if ( ! line.empty()) {
-	commands.push_command(line);
-      }
-      getline(in,line);
-    }
-
-
-    // read the commands that have been processed
-    vector<int> processed_commands;
-    ifstream processed_file_read(".tamulauncher.processed");
-
-    if (processed_file_read.peek() == std::ifstream::traits_type::eof()) {
-      // file is empty
-    } else {
-      int next_processed;
-      while (! processed_file_read.eof()) {
-	next_processed=-1;
-	processed_file_read >> next_processed;
-	if (next_processed != -1) 
-	  commands.push_processed(next_processed);
-      }
-    }
-
-
-    processed_file_read.close();
+    // open files to append processed and signaled commands
     ofstream processed_file(".tamulauncher.processed",std::ios_base::app);
-    int processed_commands_index=0;
+    ofstream signaled_file(".tamulauncher.signaled",std::ios_base::app);
 
-    // need to setup the commands structure. will mark which commands
-    // should be enabled and which ones not. Will also set the next command
-    commands.init();
 
     // quick check if we need to do anything at all
     if (!commands.has_next()) {
@@ -343,10 +196,17 @@ int main(int argc, char* argv[]) {
       
       for (int pcount=0;pcount<return_codes_size;++pcount) {
 	int ret_signal = return_codes[pcount];
-	if (WIFSIGNALED(ret_signal) && WTERMSIG(ret_signal) == SIGUSR2) {
-	  // process was killed with USR2, most likely because got killed by LSF
-	  // will decide later what to do. Definitely should not be added to list
-	  // of processed commands.
+	cout << "RET CODE for command " << command_indices[pcount] << " = " << ret_signal << "\n";
+	if (WIFSIGNALED(ret_signal)) {
+	  if (WTERMSIG(ret_signal) == SIGUSR2) {
+	  cout <<"SIGUSR2: " << commands.get_command(command_indices[pcount]).get_command_string() << "\n";
+	  // Special case, if this happens job was most likely killed by LSF because wall time ran out.
+	  // In that case command should definitely not be added to list of processed commands. 
+	  } else {
+	    cout << "SIGNALED\n";
+	    signaled_file << command_indices[pcount] <<"\n";
+	    signaled_file.flush();
+	  }
 	} else {
 	  processed_file << command_indices[pcount] <<"\n";
 	  processed_file.flush();
@@ -374,7 +234,7 @@ int main(int argc, char* argv[]) {
 	int counter=0;
 	for (vector<run_command_type>::iterator it=commands.begin();it!=commands.end();++it,++counter) {
 	  run_command_type& run_command = *it;
-	  run_command.execute();
+	  run_command.execute(task_id);
 	  int rc = run_command.get_return_code();
 	  double rt = run_command.get_runtime();
 	  command_indices[counter]=run_command.get_index();
