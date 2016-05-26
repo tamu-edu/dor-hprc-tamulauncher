@@ -146,8 +146,8 @@ int main(int argc, char* argv[]) {
     
 
     // open files to append processed and signaled commands
-    ofstream processed_file(".tamulauncher.processed",std::ios_base::app);
-    ofstream signaled_file(".tamulauncher.signaled",std::ios_base::app);
+    ofstream processed_file(commands.get_processed_file_name(),std::ios_base::app);
+    ofstream signaled_file(commands.get_signaled_file_name(),std::ios_base::app);
 
 
     // quick check if we need to do anything at all
