@@ -3,9 +3,10 @@ MPICXX=mpiicpc
 CXXFLAGS=-std=c++0x
 OPT=-O2 -g
 
+SRC=master_type.cpp worker_type.cpp run_command_type.cpp commands_type.cpp tamulauncher-loadbalanced.cpp
 default: scripts tamulauncher-loadbalanced.x
 
-tamulauncher-loadbalanced.x: run_command_type.cpp commands_type.cpp tamulauncher-loadbalanced.cpp 
+tamulauncher-loadbalanced.x: $(SRC) 
 	$(MPICXX) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^
 
 run-many-serial.x: run-many-serial.cpp
