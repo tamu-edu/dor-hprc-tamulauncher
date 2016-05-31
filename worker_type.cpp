@@ -7,7 +7,8 @@ using namespace std;
 bool worker_type::receive_and_pack() {
   bool received = false;
   int num_commands=0;
- 
+
+  MPI_Status status; 
   // receive the number of commands this task will handle
   MPI_Recv(&num_commands,1 ,MPI_INT,0,0,MPI_COMM_WORLD,&status);
   if (num_commands > 0) {
@@ -65,7 +66,7 @@ void worker_type::unpack_and_send() {
   MPI_Send(&runtimes,return_codes_size,MPI_DOUBLE,0,0,MPI_COMM_WORLD);
 }
 
-worker_type::worker_type() {
+worker_type::worker_type(base_logger_type& lg) :logger(lg) {
   MPI_Comm_rank(MPI_COMM_WORLD,&task_id);
 }
 

@@ -11,6 +11,10 @@ using namespace std;
 class commands_type {
   
 private:
+
+
+  const string processed_file_name = ".tamulauncher.processed";
+  const string signaled_file_name  = ".tamulauncher.signaled";
   
   // note: commands_index should start at -1
   // proceed method will increase it to 0 during init
@@ -19,8 +23,6 @@ private:
   bool rerun_signaled=false;
 
   string commands_file_name;
-  const  string signaled_file_name  = ".tamulauncher.signaled";
-  const  string processed_file_name = ".tamulauncher.processed";
   
   vector<run_command_type> commands;
   vector<bool> enabled_commands;
@@ -39,12 +41,9 @@ public:
   
   commands_type(string& name,bool rerun);
   
-  const string& get_signaled_file_name();
-  const string& get_processed_file_name();
-
-  
   void proceed_next();
   bool has_next(); 
+  int num_commands();
 
   run_command_type& get_command();
   run_command_type& get_command(int index);

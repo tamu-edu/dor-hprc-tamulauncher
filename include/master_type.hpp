@@ -4,22 +4,25 @@
 #include "mpi.h"
   
 #include "commands_type.hpp"
+#include "base_logger_type.hpp"
 
 using namespace std;
 
 class master_type {
 
 private:
-
+  
+  base_logger_type& logger;
   commands_type& commands;
   int chunksize; 
   int num_tasks;
 
+  int receive_and_log();
   bool pack_and_send(int destination);
 
 public:
 
-  master_type(commands_type& cmds, int csize);
+  master_type(commands_type& cmds, base_logger_type& l ,int csize);
   void start();
 
 };

@@ -45,8 +45,14 @@ run_command_type::get_index() {return command_index;}
 double 
 run_command_type::get_runtime() {return run_time;}
 
+void
+run_command_type::set_runtime(double t) { run_time=t;}
+
 int 
 run_command_type::get_return_code() {return return_code;}
+
+void
+run_command_type::set_return_code(int c) {return_code=c;}
 
 void 
 run_command_type::execute(int task_id) {
@@ -62,8 +68,6 @@ run_command_type::execute(int task_id) {
   buf.append("; ");
   buf.append(command);
   
-  cout << buf << "\n";
-
   time_t tstart = time(NULL);
   this->return_code = system(buf.c_str());
   time_t tend = time(NULL);

@@ -2,6 +2,7 @@
 #define RUN_COMMAND_TYPE_H
 
 #include <string>
+#include <array>
 
 using namespace std;
 
@@ -27,8 +28,12 @@ public:
 
   double get_runtime();
 
+  void set_runtime(double t);
+
   int get_return_code();
-  
+
+  void set_return_code(int c);
+
   void execute(int task_id);
 
 };

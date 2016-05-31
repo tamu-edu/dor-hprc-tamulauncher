@@ -1,4 +1,5 @@
 
+#include <iostream>
 #include <fstream>
 
 #include "commands_type.hpp"
@@ -66,7 +67,17 @@ commands_type::init() {
       enabled_commands[count]=false;
     }
   }
-  
+
+
+  // remove the disabled commands from the list
+  vector<run_command_type> temp_commands(commands);
+  commands.clear();
+  for (int i=0;i<enabled_commands.size();++i) {
+    if (enabled_commands[i]) {
+      commands.push_back(temp_commands[i]);
+    }
+  }
+  temp_commands.clear();
   // set commands_index to first enabled command
   proceed_next();
 }
@@ -88,15 +99,6 @@ commands_type::read_signaled() {
     }
   }
   signaled_file_read.close();
-  
-  // if the commands will be run again, need to clear the file 
-  // found this way of clearing a file online
-  if (rerun_signaled) {
-    std::ofstream ofs;
-    ofs.open(".tamulauncher.signaled", std::ofstream::out | std::ofstream::trunc);
-    ofs.close();
-  }
-
 }
 
 
@@ -117,31 +119,31 @@ commands_type::commands_type(string& name,bool rerun) {
   commands_file_name=name;
   rerun_signaled = rerun;
   setup();
-}
 
-const string& 
-commands_type::get_signaled_file_name() {
-  return signaled_file_name;
-}
+  // check if all commands have been processed, notify user if so.
+  if (!has_next()) {
+    cout << "\n\n===========================================================\n";
+    cout << "All commands have been processed.\n" <<
+      "If you think this is a mistake and/or want to redo your run\n"<<
+      "remove directory .tamulauncher and run again\n";
+    cout << "===========================================================\n\n\n";
+  }
 
-const string& 
-commands_type::get_processed_file_name() {
-  return processed_file_name;
 }
 
 
 void commands_type::proceed_next() {
   // need to move the index at least 1;
   ++commands_index;
-  while (commands_index < commands.size() &&
-	 enabled_commands[commands_index] == false) {
-    ++commands_index;
-  }
 }
 
 
 bool commands_type::has_next() {
-  return (commands_index != commands.size());
+  return (commands_index < commands.size());
+}
+
+int commands_type::num_commands() {
+
 }
 
 run_command_type&  commands_type::get_command() {

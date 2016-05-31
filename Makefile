@@ -3,7 +3,7 @@ MPICXX=mpiicpc
 CXXFLAGS=-std=c++0x
 OPT=-O2 -g
 
-SRC=master_type.cpp worker_type.cpp run_command_type.cpp commands_type.cpp tamulauncher-loadbalanced.cpp
+SRC=master_type.cpp worker_type.cpp run_command_type.cpp commands_type.cpp tamulauncher-loadbalanced.cpp logger_type.cpp base_logger_type.cpp
 default: scripts tamulauncher-loadbalanced.x
 
 tamulauncher-loadbalanced.x: $(SRC) 

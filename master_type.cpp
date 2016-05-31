@@ -11,7 +11,34 @@
 
 using namespace std;
 
+int master_type::receive_and_log() {
+  MPI_Status status;
+  int return_codes_size=0;
+  int myr = MPI_Recv(&return_codes_size,1 ,MPI_INT,MPI_ANY_SOURCE,0,MPI_COMM_WORLD,&status);
+  int sender = status.MPI_SOURCE;
 
+  int command_indices[return_codes_size];
+  int return_codes[return_codes_size];
+  double runtimes[return_codes_size];
+
+  MPI_Recv(&command_indices,return_codes_size ,MPI_INT,sender,0,MPI_COMM_WORLD,&status);
+  MPI_Recv(&return_codes,return_codes_size ,MPI_INT,sender,0,MPI_COMM_WORLD,&status);
+  MPI_Recv(&runtimes,return_codes_size ,MPI_DOUBLE,sender,0,MPI_COMM_WORLD,&status);
+
+  // pack it into run_command_type elements, need it for logging
+  vector<run_command_type> received_commands;
+  for (int i=0;i<return_codes_size;++i) {
+    run_command_type& rc = commands.get_command(command_indices[i]);
+    rc.set_runtime(runtimes[i]);
+    rc.set_return_code(return_codes[i]);
+    received_commands.push_back(rc);
+  }
+
+  // write the info from the received commands to the logs
+  logger.write_log(received_commands);
+
+  return sender;
+}
 
 bool master_type::pack_and_send(int destination) {
 
@@ -56,30 +83,17 @@ bool master_type::pack_and_send(int destination) {
 
 
 
-master_type::master_type(commands_type& cmds, int csize) : commands(cmds) {
+master_type::master_type(commands_type& cmds, base_logger_type& l, int csize) : 
+  commands(cmds), logger(l) {
+  
   chunksize = csize;
   MPI_Comm_size(MPI_COMM_WORLD,&num_tasks);
 }
 
 void master_type::start() {
 
-  // open files to append processed and signaled commands
-  ofstream processed_file(commands.get_processed_file_name(),std::ios_base::app);
-  ofstream signaled_file(commands.get_signaled_file_name(),std::ios_base::app);
-  
-  
-  // quick check if we need to do anything at all
-  if (!commands.has_next()) {
-    cout << "\n\n===========================================================\n";
-    cout << "All commands have been processed.\n" << 
-      "If you think this is a mistake and/or want to redo your run\n"<< 
-      "remove file .tamulauncher.processed and run again\n";
-    cout << "===========================================================\n\n\n";
-  }
-
-  ofstream log_file("tamulauncher.log",std::ios_base::app);
-  
-  
+  // initial round: send commands to tasks, tasks that receive 0 elements know
+  // they don't need to process anything and will not send info back
   int tasks_busy = num_tasks-1;
   for (int task_counter=1;task_counter<num_tasks;++task_counter) {
     bool commands_sent=pack_and_send(task_counter);
@@ -89,48 +103,15 @@ void master_type::start() {
   }
     
 
-  MPI_Status status;
-  int return_codes_size=0;
-  // keep sending commands until all tasks are aware there is nothing left.
+  // keep receiving results from all tasks and send new commands until 
+  // all tasks are aware there is nothing left.
   while (tasks_busy > 0) {
-
-    int myr = MPI_Recv(&return_codes_size,1 ,MPI_INT,MPI_ANY_SOURCE,0,MPI_COMM_WORLD,&status);
-    int sender = status.MPI_SOURCE;
-    
-    int command_indices[return_codes_size];
-    int return_codes[return_codes_size];
-    double runtimes[return_codes_size];
-    
-    MPI_Recv(&command_indices,return_codes_size ,MPI_INT,sender,0,MPI_COMM_WORLD,&status);
-    MPI_Recv(&return_codes,return_codes_size ,MPI_INT,sender,0,MPI_COMM_WORLD,&status);
-    MPI_Recv(&runtimes,return_codes_size ,MPI_DOUBLE,sender,0,MPI_COMM_WORLD,&status);
-    // get a copy of the processed commands
-    
+    int sender=receive_and_log();
     bool commands_sent= pack_and_send(sender);
-    
     if (commands_sent == false) {
       --tasks_busy;
     }
-    
-    for (int pcount=0;pcount<return_codes_size;++pcount) {
-      int ret_signal = return_codes[pcount];
-      if (WIFSIGNALED(ret_signal)) {
-	if (WTERMSIG(ret_signal) == SIGUSR2) {
-	  // Special case, if this happens job was most likely killed by LSF because wall time ran out.
-	  // In that case command should definitely not be added to list of processed commands. 
-	} else {
-	  signaled_file << command_indices[pcount] <<"\n";
-	  signaled_file.flush();
-	}
-      } else {
-	processed_file << command_indices[pcount] <<"\n";
-	processed_file.flush();
-      }
-      
-      log_file << command_indices[pcount] << " :: " << commands.get_command(command_indices[pcount]).get_command_string() << 
-	" :: time spent: " << runtimes[pcount] << " :: return code: " << return_codes[pcount] << "\n";
-      log_file.flush();
-    }
+
   }
 
 }
