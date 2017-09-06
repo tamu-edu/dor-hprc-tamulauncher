@@ -11,13 +11,13 @@ class logger_type : public base_logger_type{
 private:
 
   const string base_name = ".tamulauncher.log";
- 
+  int log_index;
   ofstream log_file;
 
   
 public:
 
-  logger_type(int id);
+  void open(int log_id);
 
   void write_log(vector<run_command_type>& commands);
 

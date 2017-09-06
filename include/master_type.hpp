@@ -5,10 +5,11 @@
   
 #include "commands_type.hpp"
 #include "base_logger_type.hpp"
+#include "base_master_worker_type.hpp"
 
 using namespace std;
 
-class master_type {
+class master_type : base_master_worker_type {
 
 private:
   
@@ -22,7 +23,7 @@ private:
 
 public:
 
-  master_type(commands_type& cmds, base_logger_type& l ,int csize);
+  master_type(commands_type& cmds, base_logger_type& l ,int csize, int logtype);
   void start();
 
 };

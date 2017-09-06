@@ -23,6 +23,8 @@ commands_type::read_commands() {
 }
 
 
+
+
 void 
 commands_type::read_processed() {
   // read the commands that have been processed
@@ -44,20 +46,34 @@ commands_type::read_processed() {
 
 void 
 commands_type::init() {
+  // determine which commands should be executed. Will enable/disable commands
+  // depending if they are in the processed and signaled list. 
+  // order is important. Can be the case that in one run a command got a signal
+  // but in the next run it ran fine. So signaled should be processed first.
+  // in general; signaled --> non-zero --> zero-exit
+
   // by default all commands will be enabled
+
   enabled_commands.resize(commands.size());
   fill(enabled_commands.begin(),enabled_commands.end(),true);
+
+  // enable/disable all commands in signal list, depending if kill commands need to be rerun
+  for (vector<int>::iterator it=signaled_commands.begin(); it != signaled_commands.end(); ++it) {
+    enabled_commands[(*it)]=rerun_signaled;
+  }
+
+  // enable/disable all commands in exited list
+  for (vector<int>::iterator it=exited_commands.begin(); it != exited_commands.end(); ++it) {
+    enabled_commands[(*it)]=rerun_exited;
+    printf("exited: command_index=%d, enable=%d",(*it),rerun_exited);
+  }
   
   // disable all commands that have been processed
   for (vector<int>::iterator it=processed_commands.begin(); it != processed_commands.end(); ++it) {
     enabled_commands[(*it)]=false;
   }
-  
-  // enable/disable all commands in signal list, depending if kill commands need to be rerun
-  for (vector<int>::iterator it=signaled_commands.begin(); it != signaled_commands.end(); ++it) {
-    enabled_commands[(*it)]=rerun_signaled;
-  }
-  
+
+
   // disable all commands that start with a #
   // # will override commands in signaled list.
   for (int count=0;count<commands.size();++count) {
@@ -70,17 +86,37 @@ commands_type::init() {
 
 
   // remove the disabled commands from the list
-  vector<run_command_type> temp_commands(commands);
+  all_commands=commands;
   commands.clear();
   for (int i=0;i<enabled_commands.size();++i) {
     if (enabled_commands[i]) {
-      commands.push_back(temp_commands[i]);
+      commands.push_back(all_commands[i]);
     }
   }
-  temp_commands.clear();
   // set commands_index to first enabled command
   proceed_next();
 }
+
+
+void
+commands_type::read_exited() {
+  // read the commands that have been processed
+  ifstream exited_file_read(exited_file_name.c_str());
+  if (exited_file_read.peek() == std::ifstream::traits_type::eof()) {
+    // file is empty, nothing to do                                                                                                                         
+  } else {
+    int next_exited;
+    while (! exited_file_read.eof()) {
+      next_exited=-1;
+      exited_file_read >> next_exited;
+      if (next_exited != -1)
+        exited_commands.push_back(next_exited);
+    }
+  }
+  printf("NUMBER of EXITED COMMANDS: %d\n", exited_commands.size());
+  exited_file_read.close();
+}
+
 
 
 // read the file with signaled commands
@@ -110,14 +146,22 @@ commands_type::setup() {
   read_processed();
   // read in all the signaled commands
   read_signaled();
+
+  // read in all the exited commands
+  read_exited();
+
   // setup the inital data structures
   init();
 }
 
 
-commands_type::commands_type(string& name,bool rerun) {
+commands_type::commands_type(string& name,bool signaled,bool exited) {
   commands_file_name=name;
-  rerun_signaled = rerun;
+  rerun_signaled = signaled;
+  rerun_exited = exited;
+
+  printf("signaled=%d, exited=%d\n",rerun_signaled,rerun_exited);
+
   setup();
 
   // check if all commands have been processed, notify user if so.
@@ -151,6 +195,6 @@ run_command_type&  commands_type::get_command() {
 }
 
 run_command_type& commands_type::get_command(int index) {
-  return commands[index];
+  return all_commands[index];
 }
 

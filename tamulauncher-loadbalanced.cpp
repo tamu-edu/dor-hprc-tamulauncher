@@ -1,5 +1,5 @@
 #include "mpi.h"
-  
+#include <unistd.h>  
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -9,7 +9,7 @@
 #include "master_type.hpp"
 #include "worker_type.hpp"
 #include "logger_type.hpp"
-#include "empty_logger_type.hpp"
+
 
 using namespace std;
 
@@ -25,6 +25,7 @@ int main(int argc, char* argv[]) {
     // possible flags: 
     //    --chunk-size
     //    --rerun-killed-commands
+    //    --rerun-exited
     //    --disable-load-balancing
     // NOTE: last argument has to be commands file
 
@@ -56,26 +57,47 @@ int main(int argc, char* argv[]) {
       }
       ++arg_count;
     }
-
+    
     // create the .tamulauncher.(processed | signaled | ...) files
     base_logger_type::setup_logs();
+    
+    //    int log_type=(chunksize==1 ? base_master_worker_type::MASTER_LOGS :
+    //		  base_master_worker_type::WORKER_LOGS);
 
-    commands_type commands(filename,rerun_signaled);
+    // for now every worker writes results.
+    int log_type=base_master_worker_type::WORKER_LOGS;
 
+    int options[2];
+    options[0]=chunksize;
+    options[1]=log_type;
+    
+    MPI_Bcast(&options,2, MPI_INT, 0, MPI_COMM_WORLD);
+    
+    commands_type commands(filename,rerun_signaled,rerun_exited);
     
     // this is the master, so create master object and start it
-    logger_type lg(0);
-    master_type master(commands,lg,chunksize);
+    logger_type lg;
+    master_type master(commands,lg,chunksize,log_type);
     master.start();
     
   } else {
+    
+    int options[2];
+    MPI_Bcast(&options,2, MPI_INT, 0, MPI_COMM_WORLD);
+    int chunksize=options[0];
+    int log_type = options[1];
 
     // this is worker, so create worker object and start it
-    empty_logger_type lg;
-    worker_type worker(lg);
+    logger_type lg;
+    worker_type worker(lg,log_type);
     worker.start();
   
   }
+
+  char hostname[100];
+  gethostname(hostname,100);
+  printf("MP: task %d finished, running on %s\n",task_id,hostname);
+
   // any task (master or worker) will wait here 
   MPI_Finalize ( );
   

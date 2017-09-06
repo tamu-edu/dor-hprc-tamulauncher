@@ -21,21 +21,27 @@ int master_type::receive_and_log() {
   int return_codes[return_codes_size];
   double runtimes[return_codes_size];
 
-  MPI_Recv(&command_indices,return_codes_size ,MPI_INT,sender,0,MPI_COMM_WORLD,&status);
-  MPI_Recv(&return_codes,return_codes_size ,MPI_INT,sender,0,MPI_COMM_WORLD,&status);
-  MPI_Recv(&runtimes,return_codes_size ,MPI_DOUBLE,sender,0,MPI_COMM_WORLD,&status);
 
-  // pack it into run_command_type elements, need it for logging
-  vector<run_command_type> received_commands;
-  for (int i=0;i<return_codes_size;++i) {
-    run_command_type& rc = commands.get_command(command_indices[i]);
-    rc.set_runtime(runtimes[i]);
-    rc.set_return_code(return_codes[i]);
-    received_commands.push_back(rc);
+  // if the master does the logging the worker will send the addtional information
+  // need to write the logs. Other wise, nothing else needs to be done
+  if (get_log_type() == MASTER_LOGS) {
+    MPI_Recv(&command_indices,return_codes_size ,MPI_INT,sender,0,MPI_COMM_WORLD,&status);
+    MPI_Recv(&return_codes,return_codes_size ,MPI_INT,sender,0,MPI_COMM_WORLD,&status);
+    MPI_Recv(&runtimes,return_codes_size ,MPI_DOUBLE,sender,0,MPI_COMM_WORLD,&status);
+
+    // pack it into run_command_type elements, need it for logging
+    vector<run_command_type> received_commands;
+    for (int i=0;i<return_codes_size;++i) {
+      run_command_type& rc = commands.get_command(command_indices[i]);
+      printf("master: sent command_index=%d, actual_command_index=%d\n",command_indices[i],rc.get_index());
+      rc.set_runtime(runtimes[i]);
+      rc.set_return_code(return_codes[i]);
+      received_commands.push_back(rc);
+    }
+    
+    // write the info from the received commands to the logs
+    logger.write_log(received_commands);
   }
-
-  // write the info from the received commands to the logs
-  logger.write_log(received_commands);
 
   return sender;
 }
@@ -83,7 +89,8 @@ bool master_type::pack_and_send(int destination) {
 
 
 
-master_type::master_type(commands_type& cmds, base_logger_type& l, int csize) : 
+master_type::master_type(commands_type& cmds, base_logger_type& l, int csize,int logtype) : 
+  base_master_worker_type(logtype),
   commands(cmds), logger(l) {
   
   chunksize = csize;
@@ -92,6 +99,10 @@ master_type::master_type(commands_type& cmds, base_logger_type& l, int csize) :
 
 void master_type::start() {
 
+  
+  if (get_log_type() == MASTER_LOGS) {
+    logger.open(0);
+  }
   // initial round: send commands to tasks, tasks that receive 0 elements know
   // they don't need to process anything and will not send info back
   int tasks_busy = num_tasks-1;
@@ -112,6 +123,9 @@ void master_type::start() {
       --tasks_busy;
     }
 
+  }
+  if (get_log_type() == MASTER_LOGS) {
+    logger.close();
   }
 
 }

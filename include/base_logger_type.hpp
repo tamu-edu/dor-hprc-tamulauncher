@@ -14,8 +14,11 @@ public:
 
   static void setup_logs();
 
+  virtual void open(int log_id)=0;
+
   virtual void write_log(vector<run_command_type>& commands)=0;
 
+  virtual void close()=0;
 };
 
 #endif

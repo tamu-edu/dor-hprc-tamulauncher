@@ -5,7 +5,8 @@
 
 #include "logger_type.hpp"
 
-logger_type::logger_type(int id) {
+void logger_type::open(int id) {
+  log_index=id;
   string id_string = to_string(id);
   string name = ".tamulauncher/log."+id_string;
   log_file.open(name,std::fstream::app);
@@ -18,7 +19,6 @@ void logger_type::close() {
 
 
 void logger_type::write_log(vector<run_command_type>& commands) {
-
   for (vector<run_command_type>::iterator it=commands.begin();it!=commands.end();++it) {
     run_command_type& next_command = *it;
     int ret_signal = next_command.get_return_code();
@@ -38,7 +38,7 @@ void logger_type::write_log(vector<run_command_type>& commands) {
     }
 
     log_file << next_command.get_index() << " :: " << next_command.get_command_string() <<
-      " :: time spent: " << next_command.get_runtime() << exitstring << retcode << "\n";
+      " :: time spent: " << next_command.get_runtime() << exitstring << retcode << "   " << ret_signal << "\n";
     log_file.flush();
   }
 }

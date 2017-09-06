@@ -1,3 +1,4 @@
+#include "stdio.h"
 #include "iostream"
 #include <chrono>
 
@@ -19,15 +20,19 @@ run_command_type::fix_return_code() {
   // for example SIGUSR (signal 12):
   //  actual:  10001100 00000000 
   //  correct: 00000000 00001100
-  
+
+
+
   const int most_significant = 32768;
   
+  int orig = return_code;
   int isset = return_code & most_significant;
   if (isset > 0) {
     // this means it's a SIGNAL
     // so set most significant bit to 0 and shift the number 8 positions right
     return_code = (return_code & (most_significant-1)) >> 8;
   }
+  //printf("command id=%d, orig code=:%d, new code=%d, command:  %s\n",command_index,orig,return_code,command);
 }
 
 

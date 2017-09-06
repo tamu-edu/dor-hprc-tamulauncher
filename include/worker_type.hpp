@@ -5,11 +5,11 @@
 
 #include "run_command_type.hpp"
 #include "base_logger_type.hpp"
-
+#include "base_master_worker_type.hpp"
 
 using namespace std;
 
-class worker_type {
+class worker_type : base_master_worker_type {
 
 private:
 
@@ -24,7 +24,7 @@ private:
 public:
 
 
-  worker_type(base_logger_type& lg);
+  worker_type(base_logger_type& lg, int logtype);
   void start();
 
 

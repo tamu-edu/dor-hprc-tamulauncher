@@ -1,4 +1,12 @@
+# Will use the currently loaded intel mpi c++ wrapper.
+# To make tamulauncher completely independent we want to 
+# remove the "--enable-new-dtags" flag. In this case 
+# LD_LIBRARY_PATH will not have higher precedence. 
+#MPICXX=`mpiicpc -show | sed -r 's/-Xlinker --enable-new-dtags//'`
+
+# above solution causes a warning at runtime, for now only include the GCC library path 
 MPICXX=mpiicpc
+GCCLIBS=-Xlinker --disable-new-dtags -Xlinker -rpath -Xlinker $(EBROOTGCCCORE)/lib64 -Xlinker --enable-new-dtags
 
 CXXFLAGS=-std=c++0x
 OPT=-O2 -g
@@ -7,10 +15,10 @@ SRC=master_type.cpp worker_type.cpp run_command_type.cpp commands_type.cpp tamul
 default: scripts tamulauncher-loadbalanced.x
 
 tamulauncher-loadbalanced.x: $(SRC) 
-	$(MPICXX) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^
+	$(MPICXX) $(GCCLIBS) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^
 
 run-many-serial.x: run-many-serial.cpp
-	$(MPICXX) $(CXXFLAGS) $(OPT)  -o $@ $<
+	$(MPICXX)  $(CXXFLAGS) $(OPT)  -o $@ $<
 
 scripts:
 	cp system.template system.sh;

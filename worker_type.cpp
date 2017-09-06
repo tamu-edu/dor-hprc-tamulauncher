@@ -11,6 +11,7 @@ bool worker_type::receive_and_pack() {
   MPI_Status status; 
   // receive the number of commands this task will handle
   MPI_Recv(&num_commands,1 ,MPI_INT,0,0,MPI_COMM_WORLD,&status);
+  
   if (num_commands > 0) {
     received = true;
 
@@ -61,18 +62,34 @@ void worker_type::unpack_and_send() {
   int return_codes_size = commands.size();
   MPI_Send(&return_codes_size,1,MPI_INT,0,0,MPI_COMM_WORLD);
 
-  MPI_Send(&command_indices,return_codes_size,MPI_INT,0,0,MPI_COMM_WORLD);
-  MPI_Send(&return_codes,return_codes_size,MPI_INT,0,0,MPI_COMM_WORLD);
-  MPI_Send(&runtimes,return_codes_size,MPI_DOUBLE,0,0,MPI_COMM_WORLD);
+
+  // if the master does the logging, need to send the additional information to the master
+  // otherwise will just do the logging on the worker
+  if (get_log_type() == MASTER_LOGS) {
+    MPI_Send(&command_indices,return_codes_size,MPI_INT,0,0,MPI_COMM_WORLD);
+    MPI_Send(&return_codes,return_codes_size,MPI_INT,0,0,MPI_COMM_WORLD);
+    MPI_Send(&runtimes,return_codes_size,MPI_DOUBLE,0,0,MPI_COMM_WORLD);
+  } else{
+    // nothing else to send, just write to the log
+    logger.write_log(commands);
+  }
 }
 
-worker_type::worker_type(base_logger_type& lg) :logger(lg) {
+worker_type::worker_type(base_logger_type& lg, int logtype) :
+  base_master_worker_type(logtype),
+  logger(lg) {
+
   MPI_Comm_rank(MPI_COMM_WORLD,&task_id);
 }
 
 void worker_type::start() {
+  
   int return_codes_size =0;
   bool received = true;
+  
+  if (get_log_type() == WORKER_LOGS) {
+    logger.open(task_id);
+  }
   while (received) {
 
     // receive the commands
@@ -81,6 +98,7 @@ void worker_type::start() {
     received = receive_and_pack();
     
     // if this worker received any elements process them and send results back
+
     if (received) {
       // execute the commands
       for (vector<run_command_type>::iterator it=commands.begin();it!=commands.end();++it) {
@@ -91,6 +109,10 @@ void worker_type::start() {
       // send results back
       unpack_and_send();
     }
+  }
+
+  if (get_log_type() == WORKER_LOGS) {
+    logger.close();
   }
 }
    

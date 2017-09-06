@@ -13,14 +13,14 @@ maxppn=20
 #         I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0, newer impi versions do
 # NOTE 2: there is an issue with mpiexec.hydra: it doesn't propagate
 #         ulimits to remote nodes.
-launcher=<MPIRUN>
+launcher=/sw/eb/software/impi/2017.3.196-iccifort-2017.4.196-GCC-6.4.0-2.28/bin64/mpiexec.hydra
 
 
 #path to executable
-exec=<TAMULAUNCHERBASE>/src-git/tamulauncher-loadbalanced.x
+exec=/software/hprc/tamulauncher/src-git/tamulauncher-loadbalanced.x
 
 #path to log file
-tamulauncherlog=<TAMULAUNCHERBASE>/log/tamulauncher.log
+tamulauncherlog=/software/hprc/tamulauncher/log/tamulauncher.log
 
 function get_num_procs() 
 {
