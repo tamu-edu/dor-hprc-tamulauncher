@@ -3,72 +3,50 @@
 
 source <INCLUDE>
 
-
-restart=0
-maxtasks=1000000
-
-date=`date`
-user=`whoami`
-
-pass_taskid_string=""
-
-chunksize_string=""
-rerun_string=""
-
-CHUNKS=0
-NUMTASKS=0
-PERNODE=0
-RESTART=0
-RERUNS=0
-RERUNZ=0
-
-check_numtasks() {
-    if [[ $NUMTASKS != ${NUMTASKS//[^0-9]/} ]]; then
-        echo "Error: Value of -n should be numeric value between 0 and $maxtasks"
-        exit 1
-    fi
-    if (($NUMTASKS < 0 || $NUMTASKS > $maxtasks)); then
-        echo "Error: Value of -n should be between 0 and $maxtasks. Value found: $NUMTASKS"
-        exit 1
-    fi
-    if (($NUMTASKS > $procs)); then
-        echo "Error:  value of -n ($NUMTASKS} larger than #procs specified in batchfile ($procs)"
-        exit 1
-    fi
-    if (($PERNODE > 0)); then
-        echo "Warning: both -p and -n flags used. Will ignore -n flag."
-        NUMTASKS=0;
-    fi   
+setupenv() {
+    mkdir -p ${TAMULAUNCHER_DIR}
+    touch ${TAMULAUNCHER_DIR}/commands
+    touch ${TAMULAUNCHER_DIR}/done
+    touch ${TAMULAUNCHER_DIR}/log.dummy
 }
 
+showlist() {
+    if [ -d "${TAMULAUNCHER_DIR}" ]; then
+	setupenv
+       cat ${TAMULAUNCHER_DIR}/done ${TAMULAUNCHER_DIR}/log* | sort -n
+    else
+	echo "No log directory found. Are you in the directory tamulauncher was run from?"
+	echo
+    fi
+}
+
+showstatus() {
+    if [ -d "${TAMULAUNCHER_DIR}" ]; then
+        setupenv
+	local totalc=`wc -l ${TAMULAUNCHER_DIR}/commands | cut -d" " -f1`
+	local donec=`cat ${TAMULAUNCHER_DIR}/done ${TAMULAUNCHER_DIR}/log* | wc -l`
+	echo "Total number of commands: ${totalc}, number of commands finished: ${donec}"
+	echo
+   else
+        echo "No log directory found. Are you in the directory tamulauncher was run from?"
+	echo
+    fi
+}
+
+
+# make sure #commands per node requested is number and 
+#  matches reserved cores per node   
 check_pernode() {
     if [[ $PERNODE != ${PERNODE//[^0-9]/} ]]; then
+        #check if PERNODE is a numeric value
         echo "Error: Value of -p should be numeric value between 0 and $maxppn"
         exit 1
     fi
-    if (($PERNODE < 0 || $PERNODE > $maxppn)); then
-        echo "Error: Value of -n should be between 0 and $maxppn. Value found: $PERNODE"
-        exit 1
+    if (( $PERNODE > ${batch_pernode}  )); then
+    # check if pernode is less then #cores/node reserved
+        echo "Error: tamulauncher --pernode (${PERNODE}) larger than LSF ptile size (${batch_pernode})"
+        exit
     fi
-    if (($PERNODE > $procs)); then
-	echo "Error:  value of -n ($NUMTASKS} larger than #procs specified in batchfile ($procs)"
-        exit 1
-    fi
-    if (($NUMTASKS > 0)); then
-        echo "Warning: both -n and -p flags used. Will ignore -p flag."
-        PERNODE=0;
-    fi
-}
-
-check_chunk() {
-    if [[ $CHUNKS != ${CHUNKS//[^0-9]/} ]]; then
-        echo "Error: Value of -c should be numeric value"
-        exit 1
-    fi
-#    if (($CHUNKS > $procs)); then
-#        echo "Error:  value of -c ($CHUNKS} < #procs ($procs) requested in batchfile."
-#        exit 1
-#    fi
 }
 
 
@@ -81,29 +59,14 @@ This script will execute commands in FILE concurrently.
 
 OPTIONS:
 
-  --numprocs | -n <n>
-         set the number of concurrent processes.
-         The <n> processes will be distributed evenly
-         over all the nodes.
-         NOTE: cannot use this option together with -p option.
-
-  --procs-pernode | -p <n> 
+  --commands-pernode | -p <n> 
          set the number of concurrent processes per node.
-         NOTE: cannot use this option together with -n option.
 
-  --chunksize | -c <n>
-         set the chunk size (this is the number of commands each
-         task will execute per batch. Only use this option if
-         there is significant difference in run time for commands.
-         Default: 1
+  --status
+         prints number of finished commands and exits.  
 
-  --rerun-signaled | -s 
-         rerun commands that received a kill signal in a previous 
-         run (e.g. memory error, division by 0, etc).
-
-  --rerun-nonzero
-         rerun commands that exited with a non-zero exit status 
-         in a previous run.
+  --list
+         prints detailed list of all finished commands and exits.
 
   --help | -h | ?
          Shows this message and exits
@@ -112,40 +75,30 @@ EOF
 }
 
 
-# get the number of procs first. They will be used when parsing
-# the input parameters
+TAMULAUNCHER_DIR=".tamulauncher-log"
 
-# get the total number of processors requested in batch script
-# will return 0 if not running from batch script
-procs=$(get_num_procs)
+maxtasks=10000
 
-# get the total number of processors requested in batch script
-# will return 1 if not running from batch script
-nodes=$(get_num_nodes)
+date=`date`
+user=`whoami`
+restart=0
+
+batch_jobid=$(get_job_id)
+batch_pernode=$(get_pernode)
+batch_num_nodes=$(get_num_nodes)
+
+PERNODE=0
 
 
 
+
+# read in the input parameters
 numargs=$#
 counter=1
+
 while [ $counter -le $numargs ]; do
     case $1 in
-        "--numprocs")
-            # shift the argument list to get the next element
-            let "counter=$counter+1"
-            shift
-	    
-            NUMTASKS=$1
-            check_numtasks
-            ;;
-        "-n")
-            # shift the argument list to get the next element
-            let "counter=$counter+1"
-            shift
-	    
-            NUMTASKS=$1
-            check_num_tasks
-            ;;
-        "--procs-pernode")
+        "--commands-pernode")
             # shift the argument list to get the next element
             let "counter=$counter+1"
             shift
@@ -160,30 +113,16 @@ while [ $counter -le $numargs ]; do
             PERNODE=$1
             check_pernode
             ;;
-	
-        "--chunksize")
-            # shift the argument list to get the next element
-            let "counter=$counter+1"
-            shift
-            CHUNKS=$1
-            check_chunk
-            ;;
-       "-c")
-            # shift the argument list to get the next element
-            let "counter=$counter+1"
-            shift
-            CHUNKS=$1
-            check_chunk
-            ;;
 
-        "--rerun-signaled")
-            RERUNS=1
-            ;;
-        "-s")
-            RERUNS=1
-            ;;
-        "--rerun-nonzero")
-            RERUNNZ=1
+	"--status")
+	    # shows the current status, how many commands done
+	    showstatus
+	    exit 0
+	    ;;
+        "--list")
+            # lists all done  commands 
+            showlist
+            exit 0
             ;;
         "--help")
             usage
@@ -201,6 +140,7 @@ while [ $counter -le $numargs ]; do
             if (( $counter == $numargs )); then
                     # last element this must be the commands file
                 input=$1
+		echo "found input=$input"
             else
                 echo "Warning: option/flag not recognized: $1"
             fi
@@ -212,69 +152,52 @@ while [ $counter -le $numargs ]; do
     shift
 done
 
+#check if input file was provided
+if [ -z "$input" ];
+then
+   echo "No input file specified. Exiting now .."
+   usage
+   exit 0
+fi
 
 # check if input file exists.
 if [ !  -f $input ];
 then
     echo "Cannot locate file $input. Exiting now..."
-    exit
+    exit 0
+fi
+
+# if PERNODE node set, set it to batch_per_node
+if (( $PERNODE == 0 )); then
+    PERNODE=${batch_pernode}
 fi
 
 
-
-# get the job id, use this as part of the name of the log file
-jobid=$(get_job_id)
-
-#check if script is run from with a batch job
-if [ -z "${jobid}" ]; then
-    echo "tamulauncher only runs from within batch job. Exiting now..."
-    exit
-fi
-
-
-if (($RERUNS > 0)); then
-   rerun_string="$rerun_string --rerun-killed-commands"
-fi
-
-if (($RERUNZ > 0)); then
-   rerun_string="$rerun_string --rerun-exited-commands"
-fi
-
-
-# if the chunk size was not set it to 1
-if (( $CHUNKS < 1 )); then
-   CHUNKS=1
-fi
- 
-chunksize_string="--chunk-size $CHUNKS"
-
-# by default start procs processes (maxppn per node)  
-ppn=$maxppn
-np=$procs
-
-    # if NUMTASKS or PERNODE was set, adjust ppn and np
-if (( $NUMTASKS > 0 )); then
-    np=$NUMTASKS 
-        #compute number of mpi tasks to start per node
-    let "ppn = $np/$nodes"
-    if (($np % $nodes > 0)); then
-        let "ppn=$ppn+1"
-    fi
-elif (( $PERNODE > 0 )); then
-    ppn=$PERNODE 
-    let "np=$ppn*nodes"
-fi
-MPISTRING="-perhost $ppn -np $np ";
-
-
-
-#echo "${jobid} # ${user} # START # ${date}  # ${restart} # ${MPISTRING}" >> ${tamulauncherlog}
-
-
-
+# retrieve all the parameters
+MPISTRING="-perhost 1 -np ${batch_num_nodes}";
+arguments="--tasks-per-node $PERNODE"
 # the actual run command
-runcommand="${launcher} ${MPISTRING} ${exec} ${chunksize_string} ${rerun_string} ${input}"
+runcommand="${launcher} ${MPISTRING}  ${exec} ${arguments} ${input}"
 
+# for log purposes, check if this is a restart
+if [ -d "${TAMULAUNCHER_DIR}" ]; then
+    restart=1
+fi
+
+# write to the log 
+echo "${batch_jobid} : ${user} : ${date} : restart=${restart} # ${MPISTRING} ${arguments} ${input}   (`pwd`)" >> ${tamulauncherlog}
+
+# also need to write to the LSF mod logs
+write_mod_log
+
+# set up the directory strucute and copy the commands file
+setupenv
+cp ${input} ${TAMULAUNCHER_DIR}/commands
+
+
+# create a task file, will be used in runcommand to
+# find how many omp tasks should be started
+create_node_task_files ".tamulauncher-log/node_list"
 
 # need to set this var to make sure the -perhost option is respected, 
 # when running under batch.
@@ -284,6 +207,6 @@ export I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
 echo ${runcommand}
 ${runcommand}
 
-#exitcode=$?
+exitcode=$?
 
 

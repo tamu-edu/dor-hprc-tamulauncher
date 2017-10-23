@@ -37,8 +37,12 @@ run_command_type::fix_return_code() {
 
 
 run_command_type::run_command_type(string s,int index) {
+  command =s;
+  //  if (!command.empty()) {
   command_index=index;
-  command = s;
+  // }else {
+  //  command_index=-1;
+  //}
 }
 
 string& 
@@ -60,15 +64,12 @@ void
 run_command_type::set_return_code(int c) {return_code=c;}
 
 void 
-run_command_type::execute(int task_id) {
+run_command_type::execute() {
   // tokenize                                                                                                                                            
   string buf("");
 
-  string task_id_string = std::to_string(task_id);
   string command_index_string=std::to_string(command_index);
-  buf.append("export TAMULAUNCHER_TASK_ID=");
-  buf.append(task_id_string);
-  buf.append("; export TAMULAUNCHER_COMMAND_ID=");
+  buf.append("export TAMULAUNCHER_COMMAND_ID=");
   buf.append(command_index_string);
   buf.append("; ");
   buf.append(command);

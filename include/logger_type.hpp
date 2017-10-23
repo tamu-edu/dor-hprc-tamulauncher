@@ -3,23 +3,25 @@
 
 #include <fstream>
 #include <vector>
+#include <string>
 
-#include "base_logger_type.hpp"
+#include "run_command_type.hpp"
 
-class logger_type : public base_logger_type{
+class logger_type {
 
 private:
 
-  const string base_name = ".tamulauncher.log";
-  int log_index;
-  ofstream log_file;
+  std::string log_hostname;
+  std::ofstream log_file;
 
   
 public:
 
-  void open(int log_id);
+  logger_type(std::string& hostname);  
 
-  void write_log(vector<run_command_type>& commands);
+  void open();
+
+  void write_log(run_command_type& commands);
 
   void close();
 };

@@ -5,10 +5,14 @@
 
 #include "logger_type.hpp"
 
-void logger_type::open(int id) {
-  log_index=id;
-  string id_string = to_string(id);
-  string name = ".tamulauncher/log."+id_string;
+
+
+logger_type::logger_type(std::string& hostname){
+  log_hostname=hostname;
+}
+
+void logger_type::open() {
+  string name = ".tamulauncher-log/log." + log_hostname;
   log_file.open(name,std::fstream::app);
 }
 
@@ -18,27 +22,32 @@ void logger_type::close() {
 }
 
 
-void logger_type::write_log(vector<run_command_type>& commands) {
-  for (vector<run_command_type>::iterator it=commands.begin();it!=commands.end();++it) {
-    run_command_type& next_command = *it;
-    int ret_signal = next_command.get_return_code();
-    string exitstring;
-    int retcode = 0;
-    if (WIFSIGNALED(ret_signal)) {
-      exitstring=":: SIGNAL=";
-      retcode=WTERMSIG(ret_signal); 
-    } else if (WIFEXITED(ret_signal)) {
-      exitstring=":: EXITCODE=";
-      retcode=WEXITSTATUS(ret_signal);
-    } else {
-      // not a signal not a regular exit
-      // no good way to handle it, should not happen
-      exitstring=":: UNKNOWN=";
-      retcode = -1;
-    }
+void logger_type::write_log(run_command_type& command) {
+  int ret_signal = command.get_return_code();
+  string exit_string;
+  int ret_code = 0;
+  if (WIFSIGNALED(ret_signal)) {
+    exit_string=" signal code  ";
+    ret_code=WTERMSIG(ret_signal); 
+  } else if (WIFEXITED(ret_signal)) {
+    exit_string=" exit code ";
+    ret_code=WEXITSTATUS(ret_signal);
+  } else {
+    // not a signal not a regular exit
+    // no good way to handle it, should not happen
+    exit_string=" unknown ";
+    ret_code = 0;
+  }
+  
+  std::string output = std::to_string(command.get_index()) + " :" + exit_string + 
+    std::to_string(ret_code) + ": elapsed time = " + std::to_string(command.get_runtime()) + 
+    "s # " + command.get_command_string() + "\n";  
 
-    log_file << next_command.get_index() << " :: " << next_command.get_command_string() <<
-      " :: time spent: " << next_command.get_runtime() << exitstring << retcode << "   " << ret_signal << "\n";
+  // ready to print it. Need to put it in a critical block, to avoid other threads from 
+  // writing to the same file at the same time.
+#pragma omp critical
+  {  
+    log_file << output;
     log_file.flush();
   }
 }

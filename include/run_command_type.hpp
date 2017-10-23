@@ -34,7 +34,7 @@ public:
 
   void set_return_code(int c);
 
-  void execute(int task_id);
+  void execute();
 
 };
 

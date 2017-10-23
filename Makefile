@@ -3,19 +3,24 @@
 # remove the "--enable-new-dtags" flag. In this case 
 # LD_LIBRARY_PATH will not have higher precedence. 
 #MPICXX=`mpiicpc -show | sed -r 's/-Xlinker --enable-new-dtags//'`
-
-# above solution causes a warning at runtime, for now only include the GCC library path 
 MPICXX=mpiicpc
+
+# need to hardcode the GCC library path (if not might conflict with system GCC)
 GCCLIBS=-Xlinker --disable-new-dtags -Xlinker -rpath -Xlinker $(EBROOTGCCCORE)/lib64 -Xlinker --enable-new-dtags
 
-CXXFLAGS=-std=c++0x
+# need to hardcode the intel omp5 library path since it's not in the default path
+OMPLIBS=-Xlinker --disable-new-dtags -Xlinker -rpath -Xlinker $(EBROOTIMKL)/lib/intel64 -Xlinker --enable-new-dtags
+
+CXXFLAGS=-std=c++0x -qopenmp
 OPT=-O2 -g
 
-SRC=master_type.cpp worker_type.cpp run_command_type.cpp commands_type.cpp tamulauncher-loadbalanced.cpp logger_type.cpp base_logger_type.cpp
+SRC=run_command_type.cpp commands_type.cpp tamulauncher-loadbalanced.cpp logger_type.cpp 
+
+
 default: scripts tamulauncher-loadbalanced.x
 
 tamulauncher-loadbalanced.x: $(SRC) 
-	$(MPICXX) $(GCCLIBS) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^
+	$(MPICXX) $(GCCLIBS) $(OMPLIBS) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^
 
 run-many-serial.x: run-many-serial.cpp
 	$(MPICXX)  $(CXXFLAGS) $(OPT)  -o $@ $<
@@ -24,6 +29,8 @@ scripts:
 	cp system.template system.sh;
 	sed -i "s|<MPIRUN>|`which mpiexec.hydra`|" system.sh;
 	sed -i "s|<TAMULAUNCHERBASE>|`dirname ${PWD}`|" system.sh;
+	sed -i "s|<GCCCOREMODULE>|`echo ${EBROOTGCCCORE} | sed 's#/software/easybuild/software/##'`|" system.sh
+	sed -i "s|<MPIMODULE>|`echo ${EBROOTIMPI} | sed 's#/software/easybuild/software/##'`|" system.sh
 	cp tamulauncher.template tamulauncher
 	sed -i "s|<INCLUDE>|`dirname ${PWD}`/src-git/system.sh|" tamulauncher;
 
