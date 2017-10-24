@@ -199,6 +199,17 @@ cp ${input} ${TAMULAUNCHER_DIR}/commands
 # find how many omp tasks should be started
 create_node_task_files ".tamulauncher-log/node_list"
 
+# temporarily also add done commands from previous tamulauncher version
+if [ -f "tamulauncher.log" ]; then
+   echo "... found tamulauncher.log file from previous version."
+   echo " Marking commands in this file as done. Copy of file will be"
+   echo " copied to .tamulauncher-log/tamulauncher.log.old if needed"
+   mv tamulauncher.log .tamulauncher-log/log.tamulauncher-old 
+
+   # also need to add it to done list
+   cp .tamulauncher-log/tamulauncher.log.old .tamulauncher-log/done.old-tamulauncher
+fi
+
 # need to set this var to make sure the -perhost option is respected, 
 # when running under batch.
 export I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0

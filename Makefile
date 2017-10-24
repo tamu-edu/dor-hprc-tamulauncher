@@ -39,15 +39,12 @@ scripts-classic:
 	sed -i "s|<MPIRUN>|`which mpiexec.hydra`|" tamulauncher-classic
 	sed -i "s|<TAMULAUNCHERBASE>|`dirname ${PWD}`|" tamulauncher-classic
 
-install: clean scripts scripts-classic tamulauncher-loadbalanced.x run-many-serial.x
+install: clean scripts  tamulauncher-loadbalanced.x 
 	cp system.sh ../bin/
-	cp tamulauncher ../
+	cp tamulauncher ../bin/
 	cp tamulauncher-loadbalanced.x ../bin
 	sed -i "s|src-git|bin|" ../bin/system.sh;
 	sed -i "s|src-git|bin|" ../bin/tamulauncher
-	cp tamulauncher-classic ../bin/
-	cp run-many-serial.x ../bin/
-	sed -i "s|src-git|bin|" ../bin/tamulauncher-classic
 
 
 clean:

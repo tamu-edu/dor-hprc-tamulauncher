@@ -48,7 +48,7 @@ void create_todo_vector(std::vector<unsigned int>& todo_vector) {
   
   // create temporary sorted indices file, first element will be total #commands
   system("wc -l .tamulauncher-log/commands | cut -d' ' -f1 > .tamulauncher-log/done.indices");
-  system("cut -d':' -f1 .tamulauncher-log/done | sort -n >> .tamulauncher-log/done.indices");
+  system("cut -d':' -f1 .tamulauncher-log/done | sort -nu >> .tamulauncher-log/done.indices");
   // read in the indices file 
   std::ifstream indices_file(".tamulauncher-log/done.indices");
   // read the first line, this is the total number of commands
@@ -243,6 +243,7 @@ int main(int argc, char** argv) {
       num_tasks_per_node=num;
     }
 
+    std::cout << "numthreads(" << num_tasks_per_node << ")\n";
 #pragma omp parallel num_threads(num_tasks_per_node)
     {
       
