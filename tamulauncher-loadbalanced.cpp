@@ -248,7 +248,6 @@ int main(int argc, char** argv) {
       num_tasks_per_node=num;
     }
   
-
 #pragma omp parallel num_threads(num_tasks_per_node)
     {
       
