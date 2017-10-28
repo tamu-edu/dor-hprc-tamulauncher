@@ -10,11 +10,10 @@
 #include <algorithm>
 #include <iterator>
 
+#include <stdio.h>
 
 #include "run_command_type.hpp"
 #include "commands_type.hpp"
-//#include "master_type.hpp"
-//#include "worker_type.hpp"
 #include "logger_type.hpp"
 
 int get_tasks_per_node(string& node) {
@@ -235,15 +234,21 @@ int main(int argc, char** argv) {
     logger.open();
 
 
-    // make sure the number of tasks is set correctly
-    // mostly in case where #cores can not be divided by cores/node
-    // in that case last node will have a few less cores.
-    int num = get_tasks_per_node(hostname);
-    if (num < num_tasks_per_node) {
+    // in case --tasks-per-node was set we will need to check how many tasks we
+    // actually requested in the job file. If there are less tasks requested in the
+    // job file than --tasks-per-node, need to adjust. NOTE, this should only be an
+    // issue when #tasks cannot be divided by #nodes. With SLURM the --tasks-per-node
+    // is not needed, not sure how to deal with it. TODO? 
+    int num=get_tasks_per_node(hostname);
+    if (num_tasks_per_node == 0) {
+      num_tasks_per_node=num;
+    } else if (num_tasks_per_node > num){
+      printf("... WARNING: tamulauncer --commands-per-node = %d but only %d cores per node requested in batch job. Adjusting commands per node.\n",
+	     num_tasks_per_node,num);
       num_tasks_per_node=num;
     }
+  
 
-    std::cout << "numthreads(" << num_tasks_per_node << ")\n";
 #pragma omp parallel num_threads(num_tasks_per_node)
     {
       
@@ -267,9 +272,6 @@ int main(int argc, char** argv) {
       
     }
   }
-
-  std::cout << "task " << mpi_task_id << " finished\n";
-
   MPI_Finalize ( );
   
 }

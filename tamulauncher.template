@@ -10,6 +10,10 @@ setupenv() {
     touch ${TAMULAUNCHER_DIR}/log.dummy
 }
 
+showversion() {
+    echo "Version <VERSION>"
+}
+
 showlist() {
     if [ -d "${TAMULAUNCHER_DIR}" ]; then
 	setupenv
@@ -39,13 +43,9 @@ showstatus() {
 check_pernode() {
     if [[ $PERNODE != ${PERNODE//[^0-9]/} ]]; then
         #check if PERNODE is a numeric value
-        echo "Error: Value of -p should be numeric value between 0 and $maxppn"
+        echo "ERROR: Value of -p should be numeric value between 0 and $maxppn"
+        echo "Exiting now..."
         exit 1
-    fi
-    if (( $PERNODE > ${batch_pernode}  )); then
-    # check if pernode is less then #cores/node reserved
-        echo "Error: tamulauncher --pernode (${PERNODE}) larger than LSF ptile size (${batch_pernode})"
-        exit
     fi
 }
 
@@ -60,16 +60,19 @@ This script will execute commands in FILE concurrently.
 OPTIONS:
 
   --commands-pernode | -p <n> 
-         set the number of concurrent processes per node.
+         Set the number of concurrent processes per node.
 
   --status
-         prints number of finished commands and exits.  
+         Prints number of finished commands and exits.  
 
   --list
-         prints detailed list of all finished commands and exits.
+         Prints detailed list of all finished commands and exits.
+
+  --version | -v
+         Prints version and exits.
 
   --help | -h | ?
-         Shows this message and exits
+         Shows this message and exits.
 
 EOF
 }
@@ -84,13 +87,9 @@ user=`whoami`
 restart=0
 
 batch_jobid=$(get_job_id)
-batch_pernode=$(get_pernode)
 batch_num_nodes=$(get_num_nodes)
 
 PERNODE=0
-
-
-
 
 # read in the input parameters
 numargs=$#
@@ -122,6 +121,16 @@ while [ $counter -le $numargs ]; do
         "--list")
             # lists all done  commands 
             showlist
+            exit 0
+            ;;
+       "--version")
+            # prints version
+            showversion
+            exit 0
+            ;;
+       "-v")
+            # prints version
+            showversion
             exit 0
             ;;
         "--help")
@@ -167,17 +176,19 @@ then
     exit 0
 fi
 
-# if PERNODE node set, set it to batch_per_node
-if (( $PERNODE == 0 )); then
-    PERNODE=${batch_pernode}
+
+pernodestring=""
+# if PERNODE not set, set it to batch_per_node
+if (( $PERNODE > 0 )); then
+    pernodestring="--tasks-per-node $PERNODE"
 fi
 
 
 # retrieve all the parameters
 MPISTRING="-perhost 1 -np ${batch_num_nodes}";
-arguments="--tasks-per-node $PERNODE"
+
 # the actual run command
-runcommand="${launcher} ${MPISTRING}  ${exec} ${arguments} ${input}"
+runcommand="${launcher} ${MPISTRING}  ${exec} ${pernodestring} ${input}"
 
 # for log purposes, check if this is a restart
 if [ -d "${TAMULAUNCHER_DIR}" ]; then
@@ -187,10 +198,10 @@ fi
 # write to the log 
 echo "${batch_jobid} : ${user} : ${date} : restart=${restart} # ${MPISTRING} ${arguments} ${input}   (`pwd`)" >> ${tamulauncherlog}
 
-# also need to write to the LSF mod logs
+# also need to write to the LSF/SLURM mod logs
 write_mod_log
 
-# set up the directory strucute and copy the commands file
+# set up the directory structure and copy the commands file
 setupenv
 cp ${input} ${TAMULAUNCHER_DIR}/commands
 

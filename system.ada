@@ -22,16 +22,6 @@ exec=<TAMULAUNCHERBASE>/src-git/tamulauncher-loadbalanced.x
 #path to log file
 tamulauncherlog=<TAMULAUNCHERBASE>/log/tamulauncher.log
 
-function get_num_procs() 
-{
-	local myresult=$LSB_DJOB_NUMPROC
-	if [ -z "$myresult" ]; then
-	   # in this case it's run on login node so limit to 8 procs
-	   myresult=${interactive}
-	fi	
-	echo "$myresult"
-}
-
 
 function get_job_id() 
 {
@@ -42,18 +32,6 @@ function get_job_id()
         fi   
 	echo "$myresult"
 }	
-
-
-function get_pernode()
-{
-	local myresult=`echo ${LSB_MCPU_HOSTS} | cut -d" " -f2`
-        if [ -z "$myresult" ]; then
-           # in this case it's run on login node, set pernode to 8
-           myresult=${interactive}
-        fi
-        echo "$myresult"
-
-}
 
 
 function get_num_nodes()
