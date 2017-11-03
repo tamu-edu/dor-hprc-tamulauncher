@@ -13,6 +13,7 @@ private:
 
   std::string log_hostname;
   std::ofstream log_file;
+  std::ofstream signal_file;
 
   
 public:

@@ -2,6 +2,7 @@
 
 
 source <INCLUDE>
+source <CHECKOLD>
 
 setupenv() {
     mkdir -p ${TAMULAUNCHER_DIR}
@@ -149,7 +150,6 @@ while [ $counter -le $numargs ]; do
             if (( $counter == $numargs )); then
                     # last element this must be the commands file
                 input=$1
-		echo "found input=$input"
             else
                 echo "Warning: option/flag not recognized: $1"
             fi
@@ -187,17 +187,6 @@ fi
 # retrieve all the parameters
 MPISTRING="-perhost 1 -np ${batch_num_nodes}";
 
-# the actual run command
-runcommand="${launcher} ${MPISTRING}  ${exec} ${pernodestring} ${input}"
-
-# for log purposes, check if this is a restart
-if [ -d "${TAMULAUNCHER_DIR}" ]; then
-    restart=1
-fi
-
-# write to the log 
-echo "${batch_jobid} : ${user} : ${date} : restart=${restart} # ${MPISTRING} ${arguments} ${input}   (`pwd`)" >> ${tamulauncherlog}
-
 # also need to write to the LSF/SLURM mod logs
 write_mod_log
 
@@ -219,7 +208,44 @@ if [ -f "tamulauncher.log" ]; then
 
    # also need to add it to done list
    cp .tamulauncher-log/tamulauncher.log.old .tamulauncher-log/done.old-tamulauncher
+elif [ -d "tamulauncher-log" ]; then
+    # check if the current log file already contains done commands. If that is
+    # the case cannot continue.
+    donec=`cat ${TAMULAUNCHER_DIR}/done ${TAMULAUNCHER_DIR}/log* | wc -l`
+    if (( $donec > 0 )); then
+	echo "Error: a log directory with executed command has been found for the current"
+	echo "       version of tamulauncher as well as for a tamulauncher-class run"
+	echo "       Cannot merge them. Please address or ask for help at help@hprc.tamu.edu"
+	echo "Exiting now!"
+	exit 0
+    fi
+    output_file=$(check_classic ${input} ${TAMULAUNCHER_DIR})
+    if [ ! -z "${output_file}" ]; then
+	cp ${output_file} ${TAMULAUNCHER_DIR}/commands
+	echo "Found Log directory from tamulauncher-classic run. Contents of original"
+	echo "input file \"${input}\" has been replaced by non-executed/finished commands"
+	echo "from old log. Old log directory has been moved to directory \"${TAMULAUNCHER_DIR}\"."
+	echo "Original input file \"${input}\" has been renamed to \"${input}.original\""
+	echo
+	cp ${input} ${TAMULAUNCHER_DIR}/${input}.original
+        mv ${input} ${input}.original
+	mv ${output_file} ${input}
+    fi
 fi
+
+# the actual run command
+runcommand="${launcher} ${MPISTRING}  ${exec} ${pernodestring} ${input}"
+
+# for log purposes, check if this is a restart
+if [ -d "${TAMULAUNCHER_DIR}" ]; then
+    restart=1
+fi
+
+# write to the log
+echo "${batch_jobid} : ${user} : ${date} : restart=${restart} # ${MPISTRING} ${arguments} ${input}   (`pwd`)" >> ${tamulauncherlog}
+
+
+
 
 # need to set this var to make sure the -perhost option is respected, 
 # when running under batch.

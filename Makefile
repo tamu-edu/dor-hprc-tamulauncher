@@ -48,6 +48,7 @@ scripts:
 	sed -i "s|<MPIMODULE>|`echo ${EBROOTIMPI} | sed 's#/software/easybuild/software/##'`|" system.sh
 	cp tamulauncher.template tamulauncher
 	sed -i "s|<INCLUDE>|`dirname ${PWD}`/tamulauncher-src/system.sh|" tamulauncher;
+	sed -i "s|<CHECKOLD>|`dirname ${PWD}`/tamulauncher-src/check_classic.sh|" tamulauncher;
 	sed -i "s|<VERSION>|`cat version_string`|" tamulauncher;
 
 versionmessage:
@@ -58,14 +59,15 @@ versionmessage:
 install: versionmessage
 	@echo "WARNING: make sure target has been built before executing install; do make clean <TARGET> install."
 	@cp system.sh ../bin/
+	@cp check_classic.sh ../bin/
 	@cp tamulauncher ../bin/
 	@cp tamulauncher-loadbalanced.x ../bin
-	@sed -i "s|src-git|bin|" ../bin/system.sh;
-	@sed -i "s|src-git|bin|" ../bin/tamulauncher
+	@sed -i "s|tamulauncher-src|bin|" ../bin/system.sh;
+	@sed -i "s|tamulauncher-src|bin|" ../bin/tamulauncher
 
 
 clean:
-	rm -f tamulauncher system.sh tamulauncher-loadbalanced.x 
+	rm -f tamulauncher system.sh tamulauncher-loadbalanced.x *~
 
 purge: clean
 	rm ../bin/tamulauncher ../bin/system.sh ../bin/tamulauncher-loadbalanced.x 

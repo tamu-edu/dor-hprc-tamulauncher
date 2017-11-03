@@ -14,6 +14,8 @@ logger_type::logger_type(std::string& hostname){
 void logger_type::open() {
   string name = ".tamulauncher-log/log." + log_hostname;
   log_file.open(name,std::fstream::app);
+  string signal_name = ".tamulauncher-log/signal." + log_hostname;
+  signal_file.open(signal_name,std::fstream::app);
 }
 
 
@@ -25,8 +27,11 @@ void logger_type::close() {
 void logger_type::write_log(run_command_type& command) {
   int ret_signal = command.get_return_code();
   string exit_string;
+  bool is_signal=false;
   int ret_code = 0;
+  
   if (WIFSIGNALED(ret_signal)) {
+    is_signal=true;
     exit_string=" signal code  ";
     ret_code=WTERMSIG(ret_signal); 
   } else if (WIFEXITED(ret_signal)) {
@@ -45,10 +50,17 @@ void logger_type::write_log(run_command_type& command) {
 
   // ready to print it. Need to put it in a critical block, to avoid other threads from 
   // writing to the same file at the same time.
+  // We will write commands who received a signal to a differt file since it's possible that
+  // when a job  gets killed it will send a signal to executing commands.
 #pragma omp critical
-  {  
-    log_file << output;
-    log_file.flush();
+  {
+    if (is_signal) {
+      signal_file << output;
+      signal_file.flush();
+    } else {
+      log_file << output;
+      log_file.flush();
+    }
   }
 }
 
