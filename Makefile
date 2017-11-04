@@ -2,16 +2,25 @@
 # To make tamulauncher completely independent we want to 
 # remove the "--enable-new-dtags" flag. In this case 
 # LD_LIBRARY_PATH will not have higher precedence. 
-MPICXX=`mpiicpc -show | sed -r 's/-Xlinker --enable-new-dtags//'`
 
+
+# define MPICXX GCCLIB OMPLIBS CXXFLAGS OPT for ada and terra 
+ada terra: MPICXX=`mpiicpc -show | sed -r 's/-Xlinker --enable-new-dtags//'`
 # need to hardcode the GCC library path (if not might conflict with system GCC)
-GCCLIBS=-Xlinker --disable-new-dtags -Xlinker -rpath -Xlinker $(EBROOTGCCCORE)/lib64 
-
+ada terra: GCCLIBS=-Xlinker --disable-new-dtags -Xlinker -rpath -Xlinker $(EBROOTGCCCORE)/lib64 
 # need to hardcode the intel omp5 library path since it's not in the default path
-OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/lib/intel64 
+ada terra: OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/lib/intel64 
+ada terra: CXXFLAGS=-std=c++0x -qopenmp
+ada terra: OPT=-O2 -g
+ada terra: PERNODE=-perhost
 
-CXXFLAGS=-std=c++0x -qopenmp
-OPT=-O2 -g
+#DEFINE MPICXX GCCLIB OMPLIBS CXXFLAGS OPT for curie
+curie: MPICXX=`mpic++ --show | sed -r 's/-Wl,--enable-new-dtags//'`
+curie: GCCLIBS=-Wl,--disable-new-dtags -Wl,-rpath -Wl,$(EBROOTGCCCORE)/lib64
+curie: OMPLIBS=
+curie: CXXFLAGS=-std=c++14 -fopenmp
+curie: OPT=-O2 -g
+curie: PERNODE=-npernode
 
 SRC=run_command_type.cpp commands_type.cpp tamulauncher-loadbalanced.cpp logger_type.cpp 
 
@@ -50,7 +59,7 @@ scripts:
 	sed -i "s|<INCLUDE>|`dirname ${PWD}`/tamulauncher-src/system.sh|" tamulauncher;
 	sed -i "s|<CHECKOLD>|`dirname ${PWD}`/tamulauncher-src/check_classic.sh|" tamulauncher;
 	sed -i "s|<VERSION>|`cat version_string`|" tamulauncher;
-
+	sed -i "s|<PERNODE>|${PERNODE}|" tamulauncher;
 versionmessage:
 	@echo
 	@echo

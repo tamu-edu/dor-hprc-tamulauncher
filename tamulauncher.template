@@ -185,7 +185,7 @@ fi
 
 
 # retrieve all the parameters
-MPISTRING="-perhost 1 -np ${batch_num_nodes}";
+MPISTRING="<PERNODE> 1 -np ${batch_num_nodes}";
 
 # also need to write to the LSF/SLURM mod logs
 write_mod_log
