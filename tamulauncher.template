@@ -25,11 +25,21 @@ showlist() {
     fi
 }
 
+num_total_commands() {
+    local totalc=`wc -l ${TAMULAUNCHER_DIR}/commands | cut -d" " -f1`
+    echo $totalc
+}
+
+num_commands_finished() {
+    local donec=`cat ${TAMULAUNCHER_DIR}/done ${TAMULAUNCHER_DIR}/log* | wc -l`
+    echo $donec
+}
+
 showstatus() {
     if [ -d "${TAMULAUNCHER_DIR}" ]; then
         setupenv
-	local totalc=`wc -l ${TAMULAUNCHER_DIR}/commands | cut -d" " -f1`
-	local donec=`cat ${TAMULAUNCHER_DIR}/done ${TAMULAUNCHER_DIR}/log* | wc -l`
+	local totalc=$(num_total_commands) 
+	local donec=$(num_commands_finished)
 	echo "Total number of commands: ${totalc}, number of commands finished: ${donec}"
 	echo
    else
@@ -237,7 +247,7 @@ fi
 runcommand="${launcher} ${MPISTRING}  ${exec} ${pernodestring} ${input}"
 
 # for log purposes, check if this is a restart
-if [ -d "${TAMULAUNCHER_DIR}" ]; then
+if (( $(num_commands_finished) > 0 )); then
     restart=1
 fi
 
