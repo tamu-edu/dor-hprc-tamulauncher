@@ -48,6 +48,10 @@ showstatus() {
     fi
 }
 
+removelogs() {
+    rm -rf "${TAMULAUNCHER_DIR}" 
+    echo "tamu launcher log files have been removed."
+}
 
 # make sure #commands per node requested is number and 
 #  matches reserved cores per node   
@@ -59,7 +63,6 @@ check_pernode() {
         exit 1
     fi
 }
-
 
 usage()
 {
@@ -73,11 +76,17 @@ OPTIONS:
   --commands-pernode | -p <n> 
          Set the number of concurrent processes per node.
 
+  --norestart
+         Do not restart.
+
   --status
          Prints number of finished commands and exits.  
 
   --list
          Prints detailed list of all finished commands and exits.
+  
+  --remove-logs
+         Removes the log directory and exits
 
   --version | -v
          Prints version and exits.
@@ -124,17 +133,27 @@ while [ $counter -le $numargs ]; do
             check_pernode
             ;;
 
+	"--norestart")
+	    restart=-1
+	    ;;
+
 	"--status")
 	    # shows the current status, how many commands done
 	    showstatus
 	    exit 0
 	    ;;
+
         "--list")
             # lists all done  commands 
             showlist
             exit 0
             ;;
-       "--version")
+	"--remove-logs")
+	    removelogs
+	    exit 0
+	    ;;
+
+        "--version")
             # prints version
             showversion
             exit 0
@@ -161,7 +180,7 @@ while [ $counter -le $numargs ]; do
                     # last element this must be the commands file
                 input=$1
             else
-                echo "Warning: option/flag not recognized: $1"
+                echo "Warning: flag not recognized: $1"
             fi
             ;;
     esac
@@ -186,6 +205,10 @@ then
     exit 0
 fi
 
+if (( $restart < 0 )); then
+    echo "Warning: norestart specified: removing logs."
+    rm -rf ${TAMULAUNCHER_DIR}
+fi
 
 pernodestring=""
 # if PERNODE not set, set it to batch_per_node
