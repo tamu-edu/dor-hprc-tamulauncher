@@ -11,6 +11,7 @@ class logger_type {
 
 private:
 
+  std::string log_dir;
   std::string log_hostname;
   std::ofstream log_file;
   std::ofstream signal_file;
@@ -18,7 +19,7 @@ private:
   
 public:
 
-  logger_type(std::string& hostname);  
+  logger_type(std::string& hostname, std::string& dir);  
 
   void open();
 

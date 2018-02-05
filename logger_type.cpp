@@ -1,20 +1,21 @@
 #include <vector>
 #include <string>
-
+#include <iostream>
 #include <sys/wait.h>
 
 #include "logger_type.hpp"
 
 
 
-logger_type::logger_type(std::string& hostname){
+logger_type::logger_type(std::string& hostname, std::string& dir){
   log_hostname=hostname;
+  log_dir=dir;
 }
 
 void logger_type::open() {
-  string name = ".tamulauncher-log/log." + log_hostname;
+  string name = log_dir + "/log." + log_hostname;
   log_file.open(name,std::fstream::app);
-  string signal_name = ".tamulauncher-log/signal." + log_hostname;
+  string signal_name = log_dir + "/signal." + log_hostname;
   signal_file.open(signal_name,std::fstream::app);
 }
 

@@ -5,53 +5,88 @@ source <INCLUDE>
 source <CHECKOLD>
 
 setupenv() {
-    mkdir -p ${TAMULAUNCHER_DIR}
-    touch ${TAMULAUNCHER_DIR}/commands
-    touch ${TAMULAUNCHER_DIR}/done
-    touch ${TAMULAUNCHER_DIR}/log.dummy
+    logdir=$1
+    mkdir -p ${logdir}
+    if [ "$#" -eq 2 ]; then
+	cp $2 ${logdir}/commands
+	cp $2 ${logdir}/
+    else
+	touch ${logdir}/commands
+    fi
+    touch ${logdir}/log.dummy
+
+    # create/update the done file
+    cat ${logdir}/log.* >> ${logdir}/done
+    rm -f ${logdir}/log.*
+
+    # create file containing indices of all done commands.
+    wc -l ${logdir}/commands | cut -d' ' -f1 > ${logdir}/done.indices
+    cut -d':' -f1 ${logdir}/done | sort -nu >> ${logdir}/done.indices
+
+    # create dummy file again. Used to make sure there always is log.* file 
+    touch ${logdir}/log.dummy
 }
 
 showversion() {
     echo "Version <VERSION>"
 }
 
-showlist() {
-    if [ -d "${TAMULAUNCHER_DIR}" ]; then
-	setupenv
-       cat ${TAMULAUNCHER_DIR}/done ${TAMULAUNCHER_DIR}/log* | sort -n
-    else
-	echo "No log directory found. Are you in the directory tamulauncher was run from?"
-	echo
-    fi
-}
-
-num_total_commands() {
-    local totalc=`wc -l ${TAMULAUNCHER_DIR}/commands | cut -d" " -f1`
-    echo $totalc
-}
-
-num_commands_finished() {
-    local donec=`cat ${TAMULAUNCHER_DIR}/done ${TAMULAUNCHER_DIR}/log* | wc -l`
-    echo $donec
-}
-
 showstatus() {
-    if [ -d "${TAMULAUNCHER_DIR}" ]; then
-        setupenv
-	local totalc=$(num_total_commands) 
-	local donec=$(num_commands_finished)
-	echo "Total number of commands: ${totalc}, number of commands finished: ${donec}"
-	echo
-   else
-        echo "No log directory found. Are you in the directory tamulauncher was run from?"
-	echo
+    file=$1
+    if [  -f $file ]; then
+	id=`md5sum $file | cut -d" " -f1`
+        logdir=${TAMULAUNCHER_DIR}/${id}
+        if [ -d "${logdir}" ]; then
+            setupenv $logdir
+
+	    local totalc=`wc -l ${logdir}/commands | cut -d" " -f1`
+	    local donec=`cat ${logdir}/done ${logdir}/log* | wc -l`
+            echo "Total number of commands: ${totalc}, number of commands finished: ${donec}"
+            echo
+        else
+            echo "No log directory found."
+            echo
+        fi
+    else
+        echo "no commands file $file found in current directory"
     fi
 }
+
+showlist() {
+    file=$1
+    if [  -f $file ]; then
+	id=`md5sum $file | cut -d" " -f1`
+	logdir=${TAMULAUNCHER_DIR}/${id}
+	if [ -d "${logdir}" ]; then
+	    setupenv $logdir
+	    cat ${logdir}/done ${logdir}/log* | sort -n
+	else
+	    echo "No log directory found."
+	    echo
+	fi
+    else
+	echo "no commands file $file found in current directory"
+    fi
+}
+
 
 removelogs() {
-    rm -rf "${TAMULAUNCHER_DIR}" 
-    echo "tamu launcher log files have been removed."
+    file=$1
+    if [  -f $file ]; then
+        id=`md5sum $file | cut -d" " -f1`
+	logdir=${TAMULAUNCHER_DIR}/${id}
+	if [ -d "${logdir}" ]; then
+	    rm -rf "${logdir}"
+	    echo "tamu launcher log files have been removed."
+        else
+            echo "No log directory found."
+            echo
+        fi
+    else
+        echo "no commands file $file found in current directory"
+    fi
 }
+ 
 
 # make sure #commands per node requested is number and 
 #  matches reserved cores per node   
@@ -79,13 +114,13 @@ OPTIONS:
   --norestart
          Do not restart.
 
-  --status
+  --status <commands file>
          Prints number of finished commands and exits.  
 
-  --list
+  --list <commands file>
          Prints detailed list of all finished commands and exits.
   
-  --remove-logs
+  --remove-logs <commands file>
          Removes the log directory and exits
 
   --version | -v
@@ -138,18 +173,27 @@ while [ $counter -le $numargs ]; do
 	    ;;
 
 	"--status")
-	    # shows the current status, how many commands done
-	    showstatus
+	    # shows the current status, how many commands done 
+	    let "counter=$counter+1"
+            shift
+            id=$1
+	    showstatus $id
 	    exit 0
 	    ;;
 
         "--list")
-            # lists all done  commands 
-            showlist
+            # lists all done  commands
+            let "counter=$counter+1"
+            shift
+            id=$1 
+            showlist $id
             exit 0
             ;;
 	"--remove-logs")
-	    removelogs
+	    let "counter=$counter+1"
+            shift
+            id=$1
+	    removelogs $id
 	    exit 0
 	    ;;
 
@@ -198,6 +242,7 @@ then
    exit 0
 fi
 
+
 # check if input file exists.
 if [ !  -f $input ];
 then
@@ -205,9 +250,15 @@ then
     exit 0
 fi
 
+
+# create the name of the log dir
+id=`md5sum $input | cut -d" " -f1`
+logdir=${TAMULAUNCHER_DIR}/${id}
+
+# if no restart, just remove the logdir
 if (( $restart < 0 )); then
-    echo "Warning: norestart specified: removing logs."
-    rm -rf ${TAMULAUNCHER_DIR}
+    echo "Warning: --norestart specified: removing logs."
+    rm -rf ${logdir}
 fi
 
 pernodestring=""
@@ -224,58 +275,21 @@ MPISTRING="<PERNODE> 1 -np ${batch_num_nodes}";
 write_mod_log
 
 # set up the directory structure and copy the commands file
-setupenv
-cp ${input} ${TAMULAUNCHER_DIR}/commands
+setupenv $logdir ${input}
+
 
 
 # create a task file, will be used in runcommand to
 # find how many omp tasks should be started
-create_node_task_files ".tamulauncher-log/node_list"
+create_node_task_files "${logdir}/node_list"
 
-# temporarily also add done commands from previous tamulauncher version
-if [ -f "tamulauncher.log" ]; then
-   echo "... found tamulauncher.log file from previous version."
-   echo " Marking commands in this file as done. Copy of file will be"
-   echo " copied to .tamulauncher-log/tamulauncher.log.old if needed"
-   mv tamulauncher.log .tamulauncher-log/log.tamulauncher-old 
-
-   # also need to add it to done list
-   cp .tamulauncher-log/tamulauncher.log.old .tamulauncher-log/done.old-tamulauncher
-elif [ -d "tamulauncher-log" ]; then
-    # check if the current log file already contains done commands. If that is
-    # the case cannot continue.
-    donec=`cat ${TAMULAUNCHER_DIR}/done ${TAMULAUNCHER_DIR}/log* | wc -l`
-    if (( $donec > 0 )); then
-	echo "Error: a log directory with executed command has been found for the current"
-	echo "       version of tamulauncher as well as for a tamulauncher-class run"
-	echo "       Cannot merge them. Please address or ask for help at help@hprc.tamu.edu"
-	echo "Exiting now!"
-	exit 0
-    fi
-    output_file=$(check_classic ${input} ${TAMULAUNCHER_DIR})
-    if [ ! -z "${output_file}" ]; then
-	cp ${output_file} ${TAMULAUNCHER_DIR}/commands
-	echo "Found Log directory from tamulauncher-classic run. Contents of original"
-	echo "input file \"${input}\" has been replaced by non-executed/finished commands"
-	echo "from old log. Old log directory has been moved to directory \"${TAMULAUNCHER_DIR}\"."
-	echo "Original input file \"${input}\" has been renamed to \"${input}.original\""
-	echo
-	cp ${input} ${TAMULAUNCHER_DIR}/${input}.original
-        mv ${input} ${input}.original
-	mv ${output_file} ${input}
-    fi
-fi
 
 # the actual run command
-runcommand="${launcher} ${MPISTRING}  ${exec} ${pernodestring} ${input}"
+runcommand="${launcher} ${MPISTRING}  ${exec} ${pernodestring} ${logdir}"
 
-# for log purposes, check if this is a restart
-if (( $(num_commands_finished) > 0 )); then
-    restart=1
-fi
 
 # write to the log
-echo "${batch_jobid} : ${user} : ${date} : restart=${restart} # ${MPISTRING} ${arguments} ${input}   (`pwd`)" >> ${tamulauncherlog}
+echo "${batch_jobid} : ${user} : ${date}  # ${MPISTRING}  ${logdir}   (`pwd`)" >> ${tamulauncherlog}
 
 
 

@@ -16,7 +16,7 @@
 #include "commands_type.hpp"
 #include "logger_type.hpp"
 
-int get_tasks_per_node(string& node) {
+int get_tasks_per_node(string& node, string& dirname) {
   // assumes there is a file named node_list in directory tamulauncher
   // first line should be name of node, next line should be number of tasks.
   // Continues for every node.
@@ -25,7 +25,8 @@ int get_tasks_per_node(string& node) {
   string next_host;
   int next_num=0;
   int val=-1;
-  std::ifstream node_list_file(".tamulauncher-log/node_list");
+  string nlistname = dirname+"/node_list";
+  std::ifstream node_list_file(nlistname);
   while (!done && !node_list_file.eof()) {
     node_list_file >>  next_host;
     node_list_file >> next_num;
@@ -38,21 +39,12 @@ int get_tasks_per_node(string& node) {
 
 }
 
-void create_todo_vector(std::vector<unsigned int>& todo_vector) {
+void create_todo_vector(std::vector<unsigned int>& todo_vector, string& dirname) {
   
-  // aggregate all the individual done files
-  // create log.dummy file, will prevent cat command from issueing error
-  system("cat .tamulauncher-log/log.* >> .tamulauncher-log/done");
-  system("rm -f .tamulauncher-log/log.*");
-  
-  // create temporary sorted indices file, first element will be total #commands
-  system("wc -l .tamulauncher-log/commands | cut -d' ' -f1 > .tamulauncher-log/done.indices");
-  system("cut -d':' -f1 .tamulauncher-log/done | sort -nu >> .tamulauncher-log/done.indices");
   // read in the indices file 
-  std::ifstream indices_file(".tamulauncher-log/done.indices");
+  string fname = dirname+"/done.indices";
+  std::ifstream indices_file(fname);
   // read the first line, this is the total number of commands
-
-  //  indices_file.open(".tamulauncher-log/done.indices");
   unsigned int total_commands;
   indices_file >> total_commands;
   std::vector<unsigned int> done_vector;
@@ -92,7 +84,7 @@ void create_todo_vector(std::vector<unsigned int>& todo_vector) {
   
   }  
   // don't forget to remvoe the temp indices file
-  system("rm -f .tamulauncher-log/done.indices");
+  remove(fname.c_str( ));
     
 }
   
@@ -110,10 +102,11 @@ int main(int argc, char** argv) {
 
   int num_tasks_per_node = 0; //TODO FIX
 
-  // name of the commands file
-  string filename(argv[argc-1]);
+  // location of the logs
+  string dirname(argv[argc-1]);
 
 
+  string filename=dirname+"/commands";
   commands_type commands(filename);
 
 
@@ -144,14 +137,14 @@ int main(int argc, char** argv) {
     }
     
     // create the todo vector
-    create_todo_vector(todo_vec);
+    create_todo_vector(todo_vec,dirname);
 
     
     if (todo_vec.size() == 0) {
       std::cout << "\n\n===========================================================\n";
       std::cout << "All commands have been processed.\n" <<
 	"If you think this is a mistake and/or want to redo your run\n"<<
-	"remove directory .tamulauncher-log and run again\n";
+	"run tamulauncher with --norestart option and run again\n";
       std::cout << "===========================================================\n\n\n";
     }
     
@@ -160,6 +153,7 @@ int main(int argc, char** argv) {
     options[0]=num_tasks_per_node;
     MPI_Bcast(&options,1, MPI_INT, 0, MPI_COMM_WORLD);
     
+
     // master broadcasts all indices and every mpi task will compute 
     // its own subset. Easiest solution
     
@@ -169,6 +163,7 @@ int main(int argc, char** argv) {
     MPI_Bcast(&size,1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
     if (size > 0) {
       MPI_Bcast(&todo_vec[0],size , MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+
 
 
       // this task will only process the first subset
@@ -189,6 +184,7 @@ int main(int argc, char** argv) {
     int options[1];
     MPI_Bcast(&options,1, MPI_INT, 0, MPI_COMM_WORLD);
     num_tasks_per_node = options[0];
+
 
     // all the other tasks will receive the todo vector
     int size;
@@ -228,7 +224,7 @@ int main(int argc, char** argv) {
     gethostname(th,100);
     std::string hostname(th);
 
-    logger_type logger(hostname);
+    logger_type logger(hostname,dirname);
 
     // open the logger
     logger.open();
@@ -239,7 +235,7 @@ int main(int argc, char** argv) {
     // job file than --tasks-per-node, need to adjust. NOTE, this should only be an
     // issue when #tasks cannot be divided by #nodes. With SLURM the --tasks-per-node
     // is not needed, not sure how to deal with it. TODO? 
-    int num=get_tasks_per_node(hostname);
+    int num=get_tasks_per_node(hostname,dirname);
     if (num_tasks_per_node == 0) {
       num_tasks_per_node=num;
     } else if (num_tasks_per_node > num){
