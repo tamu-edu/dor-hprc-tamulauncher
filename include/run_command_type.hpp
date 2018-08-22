@@ -20,7 +20,7 @@ private:
 
 public:
 
-  run_command_type(string s,int index);
+  run_command_type(string s);
 
   string& get_command_string();
 

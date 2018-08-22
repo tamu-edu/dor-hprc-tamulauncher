@@ -34,15 +34,15 @@ run_command_type::fix_return_code() {
   }
   //printf("command id=%d, orig code=:%d, new code=%d, command:  %s\n",command_index,orig,return_code,command);
 }
+ 
 
-
-run_command_type::run_command_type(string s,int index) {
-  command =s;
-  //  if (!command.empty()) {
-  command_index=index;
-  // }else {
-  //  command_index=-1;
-  //}
+run_command_type::run_command_type(string s) {
+  if (! s.empty()) {
+    command = s.substr(s.find(":") + 1); 
+    command_index=stoi(s.substr(0,s.find(":")));
+  } else {
+    //std::cout << "EMPTY STRING FOUND]n";
+  }
 }
 
 string& 
@@ -68,14 +68,15 @@ run_command_type::execute() {
   // tokenize                                                                                                                                            
   string buf("");
 
-  string command_index_string=std::to_string(command_index);
-  buf.append("export TAMULAUNCHER_COMMAND_ID=");
-  buf.append(command_index_string);
-  buf.append("; ");
-  buf.append(command);
+  //string command_index_string=std::to_string(command_index);
+  //buf.append("export TAMULAUNCHER_COMMAND_ID=");
+  //buf.append(command_index_string);
+  //buf.append("; ");
+  //buf.append(command);
   
   time_t tstart = time(NULL);
-  this->return_code = system(buf.c_str());
+  this->return_code = system(command.c_str());
+  //this->return_code = system(buf.c_str());
   time_t tend = time(NULL);
   this->run_time  = ((double) (tend - tstart));
   

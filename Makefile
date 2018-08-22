@@ -5,14 +5,15 @@
 
 
 # define MPICXX GCCLIB OMPLIBS CXXFLAGS OPT for ada and terra 
-ada terra: MPICXX=`mpiicpc -show | sed -r 's/-Xlinker --enable-new-dtags//'`
+#ada terra: MPICXX=`mpiicpc -show | sed -r 's/-Xlinker --enable-new-dtags//'`
 # need to hardcode the GCC library path (if not might conflict with system GCC)
 ada terra: GCCLIBS=-Xlinker --disable-new-dtags -Xlinker -rpath -Xlinker $(EBROOTGCCCORE)/lib64 
 # need to hardcode the intel omp5 library path since it's not in the default path
 ada terra: OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/lib/intel64 
 ada terra: CXXFLAGS=-std=c++0x -qopenmp
-ada terra: OPT=-O2 -g
+ada terra: OPT=-O3  -g
 ada terra: PERNODE=-perhost
+ada terra: COMPILER=icpc
 
 #DEFINE MPICXX GCCLIB OMPLIBS CXXFLAGS OPT for curie
 curie: MPICXX=`mpic++ --show | sed -r 's/-Wl,--enable-new-dtags//'`
@@ -21,6 +22,7 @@ curie: OMPLIBS=
 curie: CXXFLAGS=-std=c++14 -fopenmp
 curie: OPT=-O2 -g
 curie: PERNODE=-npernode
+curie: COMPILER=g++
 
 SRC=run_command_type.cpp commands_type.cpp tamulauncher-loadbalanced.cpp logger_type.cpp 
 
@@ -31,8 +33,8 @@ message:
 	@echo "... Not building, please specify target: ada / terra / curie";
 
 tamulauncher-loadbalanced.x: $(SRC) 
-	@echo "$(MPICXX) $(GCCLIBS) $(OMPLIBS) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^"
-	@ $(MPICXX) $(GCCLIBS) $(OMPLIBS) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^
+	@echo "$(COMPILER) $(GCCLIBS) $(OMPLIBS) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^"
+	@ $(COMPILER) $(GCCLIBS) $(OMPLIBS) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^
 
 doada:
 	cp system.ada system.sh;

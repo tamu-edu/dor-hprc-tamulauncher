@@ -4,6 +4,41 @@
 source <INCLUDE>
 source <CHECKOLD>
 
+createtodo() {
+
+    local doneindices=`cut -d" " -f1 $donefile | sort -n`
+
+    # add 1 to total_commands to reflect eof
+    let "indices_size=$num_commands+1"
+   
+    # create array of size #commandsfile and initialize to 0
+    declare -a command_indices=( $(for i in `seq 1 $indices_size` ; do echo 0; done) )
+
+    # iterate over the done indices and mark every command_indices with index in doneindices
+    for next_done in $doneindices; do
+	command_indices[${next_done}]=1
+    done 
+
+    # read all the commands, if command_indices for that line is not marked it means
+    # the command was not executed, so add to todo lies
+    counter=1
+
+    local nodeid=1
+    #touch ${todofile}.${nodeid}
+
+    while read next_command; do
+	if [ ${command_indices[$counter]} -eq 0 ]; then
+	    echo "${counter}:${next_command}" >> ${todofile}.${nodeid}
+	    if [ ${nodeid} -eq ${num_nodes} ]; then
+		nodeid=1
+            else
+		let "nodeid++"
+            fi
+	fi
+	let "counter++"
+    done < $commandsfile
+}
+
 setupenv() {
     logdir=$1
     mkdir -p ${logdir}
@@ -25,6 +60,9 @@ setupenv() {
 
     # create dummy file again. Used to make sure there always is log.* file 
     touch ${logdir}/log.dummy
+
+    # remove the todo file from previous runs
+    rm -rf ${logdir}/todo*
 }
 
 showversion() {
@@ -142,7 +180,6 @@ user=`whoami`
 restart=0
 
 batch_jobid=$(get_job_id)
-batch_num_nodes=$(get_num_nodes)
 
 PERNODE=0
 
@@ -254,6 +291,11 @@ fi
 # create the name of the log dir
 id=`md5sum $input | cut -d" " -f1`
 logdir=${TAMULAUNCHER_DIR}/${id}
+commandsfile=${logdir}/commands
+donefile=${logdir}/done
+todofile=${logdir}/todo
+num_nodes=$(get_num_nodes)
+
 
 # if no restart, just remove the logdir
 if (( $restart < 0 )); then
@@ -264,12 +306,9 @@ fi
 pernodestring=""
 # if PERNODE not set, set it to batch_per_node
 if (( $PERNODE > 0 )); then
-    pernodestring="--tasks-per-node $PERNODE"
+    pernodestring="--tasks_per_node $PERNODE"
 fi
 
-
-# retrieve all the parameters
-MPISTRING="<PERNODE> 1 -np ${batch_num_nodes}";
 
 # also need to write to the LSF/SLURM mod logs
 write_mod_log
@@ -278,29 +317,85 @@ write_mod_log
 setupenv $logdir ${input}
 
 
+num_commands=`wc -l  $commandsfile | cut -d"." -f1`
 
+# write to the log
+#echo "${batch_jobid} : ${user} : ${date}  # ${MPISTRING}  ${logdir}   (`pwd`)" >> ${tamulauncherlog}
+
+    
 # create a task file, will be used in runcommand to
 # find how many omp tasks should be started
 create_node_task_files "${logdir}/node_list"
 
 
-# the actual run command
-runcommand="${launcher} ${MPISTRING}  ${exec} ${pernodestring} ${logdir}"
+# start one process per node. Will not use mpi anymore since mpi tasks are not
+# killed after finalize (might need to check if spawned tasks are killed after
+# they finish). For now, will just start individual processes on all nodes.
+# Only caveat is that need to start all processes in background. This script
+# will monitor when all processes have finished. Once that is the case, script 
+# can exit.
 
 
-# write to the log
-echo "${batch_jobid} : ${user} : ${date}  # ${MPISTRING}  ${logdir}   (`pwd`)" >> ${tamulauncherlog}
+currentdir=`pwd`
+node_list=`cat ${logdir}/node_list `
 
+createtodo $logdir ${node_list}
 
+done_commands=`cat ${logdir}/done ${logdir}/log* | wc -l`
 
+if [ ${done_commands} -lt ${num_commands} ];
+then
+    if [ ${batch_jobid} -eq "000" ];
+    then
 
-# need to set this var to make sure the -perhost option is respected, 
-# when running under batch.
-export I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
+	# in this case it's run interactively. In this case the commands will be
+	# run in the foreground. If user wants to run it as a background process, 
+	# can add the & themselves.
+	
+	# command to execute
+	runcommand="${exec} --task_id 1 ${pernodestring} --dirname ${logdir}"
+	${runcommand} 
 
-# execute the command
-echo ${runcommand}
-${runcommand}
+    else
+
+	# in this case it's run as a batch job. Will start a single OpenMP  process
+	# on every node, each process will indepently execute a subset of the commands
+
+	counter=1
+	for node in ${node_list}
+	do
+	    if [ $((counter%2)) -eq 1 ];
+	    then
+		runcommand="${exec} --task_id ${counter} ${pernodestring} --dirname ${logdir} ; exit"
+		#	echo "ssh -n $node cd $currentdir ; ${runcommand} "
+		time ssh -n $node "cd $currentdir ; ${runcommand} " &
+	    fi
+	    let "counter++"
+	done
+	
+	# have to check for all back ground processes to finish
+	# only way when all background processes have finsihed is when
+	# all commands have been executed.
+
+	done_commands=`cat ${logdir}/done ${logdir}/log* | wc -l`
+	while [ ${done_commands} -lt ${num_commands} ]; 
+	do 
+	    #echo "finished $done_commands out of ${num_commands}"
+	    sleep 1;
+	    done_commands=`cat ${logdir}/done ${logdir}/log* | wc -l`
+	done
+	
+	echo "...All commands have been executed. Exiting now!"
+    fi
+else
+    echo "==========================================================="
+    echo "#commands: ${num_commands}, #finished commands: ${done_commands}"
+    echo "All commands have been processed."
+    echo "If you think this is a mistake and/or want to redo your run"
+    echo "run tamulauncher with --norestart option."
+    echo "==========================================================="
+fi
+
 
 exitcode=$?
 

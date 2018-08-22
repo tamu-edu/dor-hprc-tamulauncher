@@ -53,7 +53,7 @@ void logger_type::write_log(run_command_type& command) {
   // writing to the same file at the same time.
   // We will write commands who received a signal to a differt file since it's possible that
   // when a job  gets killed it will send a signal to executing commands.
-#pragma omp critical
+#pragma omp critical 
   {
     if (is_signal) {
       signal_file << output;

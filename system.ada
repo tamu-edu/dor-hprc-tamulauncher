@@ -7,15 +7,6 @@
 maxppn=20
 interactive=8
 
-# define the mpi lancher. Still has to be mpiexec.hydra right now
-# if use mpirun will complain cannot find mpiexec.hydra.
-# NOTE 1: before had to use mpiexec.hydra because mpirun didn't
-#         I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0, newer impi versions do
-# NOTE 2: there is an issue with mpiexec.hydra: it doesn't propagate
-#         ulimits to remote nodes.
-launcher=<MPIRUN>
-
-
 #path to executable
 exec=<TAMULAUNCHERBASE>/tamulauncher-src/tamulauncher-loadbalanced.x
 

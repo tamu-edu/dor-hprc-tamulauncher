@@ -6,7 +6,7 @@
 #include "run_command_type.hpp"
 
 
-commands_type::commands_type(std::string& name) : dummy_command("",-1) {
+commands_type::commands_type(std::string& name) : dummy_command("-1:") {
   commands_file_name=name;
 }
 
@@ -15,14 +15,14 @@ void
 commands_type::read() {
   std::ifstream in;
   in.open(commands_file_name.c_str());
-  std::string line;
-  getline(in,line);
-  unsigned int counter=0;
-  while (! in.eof()) {
-      run_command_type cmd(line,counter);
+  if (in.good()) {
+    std::string line;
+    getline(in,line);
+    while (! in.eof()) {
+      run_command_type cmd(line);
       commands.push_back(cmd);
-      ++counter;
       getline(in,line);
+    }
   }
 }
 
