@@ -55,14 +55,17 @@ setupenv() {
     rm -f ${logdir}/log.*
 
     # create file containing indices of all done commands.
-    wc -l ${logdir}/commands | cut -d' ' -f1 > ${logdir}/done.indices
-    cut -d':' -f1 ${logdir}/done | sort -nu >> ${logdir}/done.indices
+    #wc -l ${logdir}/commands | cut -d' ' -f1 > ${logdir}/done.indices
+    #cut -d':' -f1 ${logdir}/done | sort -nu >> ${logdir}/done.indices
 
     # create dummy file again. Used to make sure there always is log.* file 
     touch ${logdir}/log.dummy
 
     # remove the todo file from previous runs
     rm -rf ${logdir}/todo*
+
+    # remoce the released file from previous run
+    rm -rf ${logdir}/released.*
 }
 
 showversion() {
@@ -173,7 +176,7 @@ EOF
 
 TAMULAUNCHER_DIR=".tamulauncher-log"
 
-maxtasks=10000
+maxtasks=1000000
 
 date=`date`
 user=`whoami`
@@ -337,7 +340,10 @@ create_node_task_files "${logdir}/node_list"
 
 
 currentdir=`pwd`
-node_list=`cat ${logdir}/node_list `
+
+node_list=`sed -n 1~2p ${logdir}/node_list`
+node_list=$(echo $node_list|tr -d '\n')
+
 
 createtodo $logdir ${node_list}
 
@@ -348,8 +354,8 @@ then
     if [ ${batch_jobid} -eq "000" ];
     then
 
-	# in this case it's run interactively. In this case the commands will be
-	# run in the foreground. If user wants to run it as a background process, 
+	# in this case it's run interactively. commands will be run in
+	# the foreground. If user wants to run it as a background process, 
 	# can add the & themselves.
 	
 	# command to execute
@@ -362,14 +368,18 @@ then
 	# on every node, each process will indepently execute a subset of the commands
 
 	counter=1
+	index=1
 	for node in ${node_list}
 	do
-	    if [ $((counter%2)) -eq 1 ];
-	    then
-		runcommand="${exec} --task_id ${counter} ${pernodestring} --dirname ${logdir} ; exit"
-		#	echo "ssh -n $node cd $currentdir ; ${runcommand} "
-		time ssh -n $node "cd $currentdir ; ${runcommand} " &
-	    fi
+	    #if [ $((counter%2)) -eq 1 ];
+	    #then
+		runcommand="${exec} --task_id ${index} ${pernodestring} --dirname ${logdir} ; exit"
+		echo "ssh -n $node cd $currentdir ; ${runcommand} "
+		ssh -n $node "cd $currentdir ; ${runcommand} " &
+		released_nodes="${released_nodes} ${node}"
+		#increase the counter
+		let "index++"
+	    #fi
 	    let "counter++"
 	done
 	
@@ -377,11 +387,14 @@ then
 	# only way when all background processes have finsihed is when
 	# all commands have been executed.
 
+
+	declare -a released_cores=( $(for i in `seq 1 ${num_nodes}` ; do echo 0; done) )
+
 	done_commands=`cat ${logdir}/done ${logdir}/log* | wc -l`
 	while [ ${done_commands} -lt ${num_commands} ]; 
 	do 
-	    #echo "finished $done_commands out of ${num_commands}"
-	    sleep 1;
+	    release_resources 
+	    sleep 2;
 	    done_commands=`cat ${logdir}/done ${logdir}/log* | wc -l`
 	done
 	

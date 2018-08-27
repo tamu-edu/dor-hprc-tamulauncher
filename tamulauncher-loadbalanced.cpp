@@ -70,6 +70,8 @@ int main(int argc, char** argv) {
   commands_type commands(filename);
 
   commands.read();
+
+  printf("Task %d read in %d commands.\n",task_id,commands.num_commands());
   if  (commands.num_commands() > 0) {
     
     // create logger, need to get the hostname for that
@@ -113,11 +115,17 @@ int main(int argc, char** argv) {
 #pragma omp atomic capture
 	local_index=global_command_index++;
       }
-      
-      // when this point is reached, the thread has no commands to process
-      // anymore. For now just release the resource and wait for the 
-      // threads to finish 
-      
+
+
+#pragma omp critical (release)
+      {
+	string release_file_name = dirname+"/released."+hostname;
+	std::ofstream release_file;
+	release_file.open(release_file_name,std::fstream::app);
+	release_file << local_index << " released\n";
+	release_file.close();
+	//std::cout << hostname << " released, thread=" << omp_get_thread_num() << " out of " << omp_get_num_threads() << "\n";
+      }
     }
     
   } else {

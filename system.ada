@@ -63,3 +63,29 @@ function write_mod_log()
            echo "`date +%H%M%S` $USER using $mod from $HOSTNAME:$PWD - (LSF: ${jobid} ${jobname}) - /software/easybuild/modules/all/$mod" >> $modlog
         done
 }
+
+function release_resources()
+{
+    # this function will try to release resources. an array with released resources is passed in
+    # There will be a single multi threaded process running on every node. Whenever a thread
+    # has nothing left to do it will add another line to file released.<HOSTNAME>
+    # this function will calculate the difference of the number of lines in this file and the
+    # number of cores that were already released before, and call the lsf release command for that
+    # particular node and resources
+
+    
+    local index=0
+    for next_host in ${node_list} ; do
+        prev_released=${released_cores[$index]}
+        new_released=` wc -l ${logdir}/released.${next_host} | cut -d' ' -f1 `
+        let "released_diff=${new_released}-${prev_released}"
+        if [ ${released_diff} -gt 0 ]; then
+            bresize release ${released_diff}*${next_host} ${batch_jobid}
+            released_cores[$index]=${new_released}
+            echo "released ${released_diff} cores on ${next_host}"
+	fi
+	let "index++"
+    done
+}
+
+
