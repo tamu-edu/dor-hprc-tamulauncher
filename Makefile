@@ -38,17 +38,20 @@ tamulauncher-loadbalanced.x: $(SRC)
 
 doada:
 	cp system.ada system.sh;
+	cp release_cores.lsf.sh release_cores.sh;
 
 ada: tamulauncher-loadbalanced.x doada scripts
 
 doterra:
 	cp system.terra system.sh
+	cp release_cores.slurm.sh release_cores.sh
 
 terra: tamulauncher-loadbalanced.x doterra scripts
 
 
 docurie:
 	cp system.curie system.sh
+	cp release_cores.lsf.sh release_cores.sh
 
 curie: tamulauncher-loadbalanced.x docurie scripts
 
@@ -62,6 +65,7 @@ scripts:
 	sed -i "s|<CHECKOLD>|`dirname ${PWD}`/tamulauncher-src/check_classic.sh|" tamulauncher;
 	sed -i "s|<VERSION>|`cat version_string`|" tamulauncher;
 	sed -i "s|<PERNODE>|${PERNODE}|" tamulauncher;
+	sed -i "s|<TAMULAUNCHERBASE>|`dirname ${PWD}`|" tamulauncher
 versionmessage:
 	@echo
 	@echo
@@ -73,12 +77,13 @@ install: versionmessage
 	@cp check_classic.sh ../bin/
 	@cp tamulauncher ../bin/
 	@cp tamulauncher-loadbalanced.x ../bin
+	@cp release_cores.sh ../bin
 	@sed -i "s|tamulauncher-src|bin|" ../bin/system.sh;
 	@sed -i "s|tamulauncher-src|bin|" ../bin/tamulauncher
 
 
 clean:
-	rm -f tamulauncher system.sh tamulauncher-loadbalanced.x *~
+	rm -f tamulauncher release_cores.sh system.sh tamulauncher-loadbalanced.x  *~
 
 purge: clean
 	rm ../bin/tamulauncher ../bin/system.sh ../bin/tamulauncher-loadbalanced.x 

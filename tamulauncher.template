@@ -13,6 +13,7 @@ createtodo() {
    
     # create array of size #commandsfile and initialize to 0
     declare -a command_indices=( $(for i in `seq 1 $indices_size` ; do echo 0; done) )
+    node_name=(`echo ${node_list}`);
 
     # iterate over the done indices and mark every command_indices with index in doneindices
     for next_done in $doneindices; do
@@ -23,16 +24,16 @@ createtodo() {
     # the command was not executed, so add to todo lies
     counter=1
 
-    local nodeid=1
+    local nodeid=0
+    local maxid=${#node_name[@]}
     #touch ${todofile}.${nodeid}
 
     while read next_command; do
 	if [ ${command_indices[$counter]} -eq 0 ]; then
-	    echo "${counter}:${next_command}" >> ${todofile}.${nodeid}
-	    if [ ${nodeid} -eq ${num_nodes} ]; then
-		nodeid=1
-            else
-		let "nodeid++"
+	    echo "${counter}:${next_command}" >> ${todofile}.${node_name[$nodeid]}
+	    let "nodeid++"
+	    if [ ${nodeid} -eq ${maxid} ]; then
+		nodeid=0
             fi
 	fi
 	let "counter++"
@@ -62,10 +63,11 @@ setupenv() {
     touch ${logdir}/log.dummy
 
     # remove the todo file from previous runs
-    rm -rf ${logdir}/todo*
+    rm -f ${todofile}.* 
 
     # remoce the released file from previous run
-    rm -rf ${logdir}/released.*
+    rm -f ${releasedfile}.*
+
 }
 
 showversion() {
@@ -297,6 +299,9 @@ logdir=${TAMULAUNCHER_DIR}/${id}
 commandsfile=${logdir}/commands
 donefile=${logdir}/done
 todofile=${logdir}/todo
+releasedfile=${logdir}/released
+nodelistfile=${logdir}/node_list
+
 num_nodes=$(get_num_nodes)
 
 
@@ -322,13 +327,10 @@ setupenv $logdir ${input}
 
 num_commands=`wc -l  $commandsfile | cut -d"." -f1`
 
-# write to the log
-#echo "${batch_jobid} : ${user} : ${date}  # ${MPISTRING}  ${logdir}   (`pwd`)" >> ${tamulauncherlog}
-
     
 # create a task file, will be used in runcommand to
 # find how many omp tasks should be started
-create_node_task_files "${logdir}/node_list"
+create_node_task_files "${nodelistfile}"
 
 
 # start one process per node. Will not use mpi anymore since mpi tasks are not
@@ -345,10 +347,18 @@ node_list=`sed -n 1~2p ${logdir}/node_list`
 node_list=$(echo $node_list|tr -d '\n')
 
 
-createtodo $logdir ${node_list}
+createtodo #$logdir ${node_list}
 
 done_commands=`cat ${logdir}/done ${logdir}/log* | wc -l`
 
+
+
+MPISTRING="<PERNODE> 1 -np ${num_nodes}"
+# write to the log
+echo "${batch_jobid} : ${user} : ${date}  # ${MPISTRING}  ${logdir}   (`pwd`)" >> ${tamulauncherlog}
+
+
+#echo "done_commands=${done_commands}, num_commands=${num_commands}"
 if [ ${done_commands} -lt ${num_commands} ];
 then
     if [ ${batch_jobid} -eq "000" ];
@@ -359,7 +369,7 @@ then
 	# can add the & themselves.
 	
 	# command to execute
-	runcommand="${exec} --task_id 1 ${pernodestring} --dirname ${logdir}"
+	runcommand="${exec} ${pernodestring} --dirname ${logdir}"
 	${runcommand} 
 
     else
@@ -367,36 +377,23 @@ then
 	# in this case it's run as a batch job. Will start a single OpenMP  process
 	# on every node, each process will indepently execute a subset of the commands
 
-	counter=1
-	index=1
-	for node in ${node_list}
-	do
-	    #if [ $((counter%2)) -eq 1 ];
-	    #then
-		runcommand="${exec} --task_id ${index} ${pernodestring} --dirname ${logdir} ; exit"
-		echo "ssh -n $node cd $currentdir ; ${runcommand} "
-		ssh -n $node "cd $currentdir ; ${runcommand} " &
-		released_nodes="${released_nodes} ${node}"
-		#increase the counter
-		let "index++"
-	    #fi
-	    let "counter++"
-	done
+	# first start a background process that periodically releases cores
+        # that are not being used any more
+	<TAMULAUNCHERBASE>/tamulauncher-src/release_cores.sh "${nodelistfile}" "${releasedfile}" "${batch_jobid}" "${PERNODE}" &
+	RELEASED_JOB_ID=$!
 	
-	# have to check for all back ground processes to finish
-	# only way when all background processes have finsihed is when
-	# all commands have been executed.
+	# use mpi to start individual processes, one per node
+	runcommand="${exec} ${pernodestring} --dirname ${logdir}"
+
+	echo "launching: ${launcher} ${MPISTRING} ${runcommand}"
+	export I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
+
+	${launcher} ${MPISTRING} ${runcommand}
 
 
-	declare -a released_cores=( $(for i in `seq 1 ${num_nodes}` ; do echo 0; done) )
-
-	done_commands=`cat ${logdir}/done ${logdir}/log* | wc -l`
-	while [ ${done_commands} -lt ${num_commands} ]; 
-	do 
-	    release_resources 
-	    sleep 2;
-	    done_commands=`cat ${logdir}/done ${logdir}/log* | wc -l`
-	done
+	# once this point is reached, all commands have been executed.
+        # time to kill the background process that releases cores
+	kill ${RELEASED_JOB_ID} >& /dev/null
 	
 	echo "...All commands have been executed. Exiting now!"
     fi

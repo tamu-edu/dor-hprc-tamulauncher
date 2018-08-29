@@ -66,7 +66,7 @@ run_command_type::set_return_code(int c) {return_code=c;}
 void 
 run_command_type::execute() {
   // tokenize                                                                                                                                            
-  string buf("");
+  //  string buf("");
 
   //string command_index_string=std::to_string(command_index);
   //buf.append("export TAMULAUNCHER_COMMAND_ID=");

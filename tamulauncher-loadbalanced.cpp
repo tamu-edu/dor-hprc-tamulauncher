@@ -41,8 +41,6 @@ int get_tasks_per_node(string& node, string& dirname) {
   
 int main(int argc, char** argv) {
 
-  int task_id = -1;
-  string task_id_string;
   int num_tasks_per_node = 0;
   string dirname;
 
@@ -53,10 +51,6 @@ int main(int argc, char** argv) {
     if (next_command == "--tasks_per_node") {
       ++arg_count;
       num_tasks_per_node= atoi(argv[arg_count]);
-    }  else if (next_command == "--task_id") {
-      ++arg_count;
-      task_id_string=argv[arg_count];
-      task_id= atoi(argv[arg_count]);
     } else if (next_command == "--dirname") {
       ++arg_count;
       dirname= argv[arg_count];
@@ -66,75 +60,70 @@ int main(int argc, char** argv) {
     ++arg_count;
   }
 
-  string filename=dirname+"/todo."+task_id_string;
+
+  char th[100];
+  gethostname(th,100);
+  std::string hostname(th);
+
+
+  string filename=dirname+"/todo."+hostname;
   commands_type commands(filename);
 
   commands.read();
 
-  printf("Task %d read in %d commands.\n",task_id,commands.num_commands());
-  if  (commands.num_commands() > 0) {
-    
-    // create logger, need to get the hostname for that
-    char th[100];
-    gethostname(th,100);
-    std::string hostname(th);
-    
-    logger_type logger(hostname,dirname);
-    
-    // open the logger
-    logger.open();
-    
-    
-    // in case --tasks-per-node was set we will need to check how many tasks we
-    // actually requested in the job file. If there are less tasks requested in the
-    // job file than --tasks-per-node, need to adjust. NOTE, this should only be an
-    // issue when #tasks cannot be divided by #nodes. With SLURM the --tasks-per-node
-    // is not needed, not sure how to deal with it. TODO? 
-    int num=get_tasks_per_node(hostname,dirname);
-    if (num_tasks_per_node == 0) {
-      num_tasks_per_node=num;
-    } else if (num_tasks_per_node > num){
-      printf("... WARNING: tamulauncer --commands-per-node = %d but only %d cores per node requested in batch job. Adjusting commands per node.\n",
-	     num_tasks_per_node,num);
-      num_tasks_per_node=num;
-    }
-    
-    int global_command_index=num_tasks_per_node;
-    int num_commands = commands.num_commands();
-#pragma omp parallel num_threads(num_tasks_per_node)
-    {
-      
-      int local_index= omp_get_thread_num();
-      
-      while (local_index < num_commands) {
-	run_command_type& next_command = commands.command_at(local_index);
-	next_command.execute();
-	logger.write_log(next_command);
-	
-	// get next index to process
-#pragma omp atomic capture
-	local_index=global_command_index++;
-      }
-
-
-#pragma omp critical (release)
-      {
-	string release_file_name = dirname+"/released."+hostname;
-	std::ofstream release_file;
-	release_file.open(release_file_name,std::fstream::app);
-	release_file << local_index << " released\n";
-	release_file.close();
-	//std::cout << hostname << " released, thread=" << omp_get_thread_num() << " out of " << omp_get_num_threads() << "\n";
-      }
-    }
-    
-  } else {
-    std::cout << "\n\n===========================================================\n";
-    std::cout << "All commands have been processed.\n" <<
-      "If you think this is a mistake and/or want to redo your run\n"<<
-      "run tamulauncher with --norestart option and run again\n";
-    std::cout << "===========================================================\n\n\n";
+  //  printf("Task %s read in %d commands.\n",hostname.c_str(),commands.num_commands());
+     
+  // create logger, need to get the hostname for that
+  logger_type logger(hostname,dirname);
+  
+  // open the logger
+  logger.open();
+  
+  
+  // in case --tasks-per-node was set we will need to check how many tasks we
+  // actually requested in the job file. If there are less tasks requested in the
+  // job file than --tasks-per-node, need to adjust. NOTE, this should only be an
+  // issue when #tasks cannot be divided by #nodes. With SLURM the --tasks-per-node
+  // is not needed, not sure how to deal with it. TODO? 
+  int num=get_tasks_per_node(hostname,dirname);
+  if (num_tasks_per_node == 0) {
+    num_tasks_per_node=num;
+  } else if (num_tasks_per_node > num){
+    printf("... WARNING: tamulauncer --commands-per-node = %d but only %d cores per node requested in batch job. Adjusting commands per node.\n",
+	   num_tasks_per_node,num);
+    num_tasks_per_node=num;
   }
+  
+  int global_command_index=num_tasks_per_node;
+  int num_commands = commands.num_commands();
+#pragma omp parallel num_threads(num_tasks_per_node)
+  {
+    
+    int local_index= omp_get_thread_num();
+    
+    while (local_index < num_commands) {
+      run_command_type& next_command = commands.command_at(local_index);
+      next_command.execute();
+      logger.write_log(next_command);
+      
+      // get next index to process
+#pragma omp atomic capture
+      local_index=global_command_index++;
+    }
+    
+    
+#pragma omp critical (release)
+    {
+      string release_file_name = dirname+"/released."+hostname;
+      std::ofstream release_file;
+      release_file.open(release_file_name,std::fstream::app);
+      release_file << local_index << " released\n";
+      release_file.close();
+      std::cerr << hostname << " released, thread=" << omp_get_thread_num() << " out of " << omp_get_num_threads() << "\n";
+    }
+  }
+  
+  
   
 }
 
