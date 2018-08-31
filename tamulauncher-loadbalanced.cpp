@@ -119,7 +119,7 @@ int main(int argc, char** argv) {
       release_file.open(release_file_name,std::fstream::app);
       release_file << local_index << " released\n";
       release_file.close();
-      std::cerr << hostname << " released, thread=" << omp_get_thread_num() << " out of " << omp_get_num_threads() << "\n";
+      //std::cerr << hostname << " released, thread=" << omp_get_thread_num() << " out of " << omp_get_num_threads() << "\n";
     }
   }
   

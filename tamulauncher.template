@@ -2,7 +2,6 @@
 
 
 source <INCLUDE>
-source <CHECKOLD>
 
 createtodo() {
 
@@ -41,23 +40,16 @@ createtodo() {
 }
 
 setupenv() {
-    logdir=$1
     mkdir -p ${logdir}
-    if [ "$#" -eq 2 ]; then
-	cp $2 ${logdir}/commands
-	cp $2 ${logdir}/
-    else
-	touch ${logdir}/commands
+    if [ ! -f ${commandsfile} ]; then
+	cp ${input} ${logdir}/
+	ln -s ${input} ${commandsfile}
     fi
-    touch ${logdir}/log.dummy
 
     # create/update the done file
+    touch ${logdir}/log.dummy
     cat ${logdir}/log.* >> ${logdir}/done
     rm -f ${logdir}/log.*
-
-    # create file containing indices of all done commands.
-    #wc -l ${logdir}/commands | cut -d' ' -f1 > ${logdir}/done.indices
-    #cut -d':' -f1 ${logdir}/done | sort -nu >> ${logdir}/done.indices
 
     # create dummy file again. Used to make sure there always is log.* file 
     touch ${logdir}/log.dummy
@@ -75,61 +67,81 @@ showversion() {
 }
 
 showstatus() {
-    file=$1
-    if [  -f $file ]; then
-	id=`md5sum $file | cut -d" " -f1`
-        logdir=${TAMULAUNCHER_DIR}/${id}
-        if [ -d "${logdir}" ]; then
-            setupenv $logdir
-
+    if [  -d $logdir ]; then
+	# make sure there is a commands file and log files
+	if [ -f ${commandsfile} ]; then
 	    local totalc=`wc -l ${logdir}/commands | cut -d" " -f1`
 	    local donec=`cat ${logdir}/done ${logdir}/log* | wc -l`
             echo "Total number of commands: ${totalc}, number of commands finished: ${donec}"
             echo
-        else
-            echo "No log directory found."
-            echo
-        fi
+	else
+	    echo "No commands file found in ${logdir}. Log might be corrupted"
+	fi
     else
-        echo "no commands file $file found in current directory"
+        echo "... log directory not found. No status to show."
     fi
 }
 
 showlist() {
-    file=$1
-    if [  -f $file ]; then
-	id=`md5sum $file | cut -d" " -f1`
-	logdir=${TAMULAUNCHER_DIR}/${id}
-	if [ -d "${logdir}" ]; then
-	    setupenv $logdir
+    if [  -d $logdir ]; then
+        # make sure there is a commands file and log files
+        if [ -f ${commandsfile}  ]; then
 	    cat ${logdir}/done ${logdir}/log* | sort -n
-	else
-	    echo "No log directory found."
-	    echo
-	fi
-    else
-	echo "no commands file $file found in current directory"
-    fi
-}
-
-
-removelogs() {
-    file=$1
-    if [  -f $file ]; then
-        id=`md5sum $file | cut -d" " -f1`
-	logdir=${TAMULAUNCHER_DIR}/${id}
-	if [ -d "${logdir}" ]; then
-	    rm -rf "${logdir}"
-	    echo "tamu launcher log files have been removed."
         else
-            echo "No log directory found."
-            echo
+            echo "No commands file found in ${logdir}. Log might be corrupted"
         fi
     else
-        echo "no commands file $file found in current directory"
+        echo "... log directory not found. No list to show."
     fi
 }
- 
+
+removelogs() {
+    if [  -d $logdir ]; then
+        # make sure there is a commands file and log files
+	rm -rf "${logdir}"
+	echo "tamu launcher log files have been removed."
+    else
+        echo "... log directory not found, cannot remove."
+    fi
+}
+
+
+
+checklock()
+{
+    if [  -d $logdir ]; then
+	if [ -f ${lockfile} ]; then
+	    echo "0"
+	else
+            touch ${lockfile}
+	    echo "1"
+	fi
+    else
+        echo "0"
+    fi
+}
+
+# this function will be called whenever scripts is exiting
+releaselock()
+{
+    echo "... exiting now, releasing lock"
+    rm -f ${lockfile} >& /dev/null
+}
+
+
+removelock() 
+{    
+    if [  -d $logdir ]; then
+	if [ -f ${lockfile} ]; then
+	    rm -f ${lockfile}
+	else
+	    echo "no lock found!"
+	fi
+    else
+        echo "... log directory not found, cannot remove."
+    fi
+} 
+
 
 # make sure #commands per node requested is number and 
 #  matches reserved cores per node   
@@ -166,6 +178,9 @@ OPTIONS:
   --remove-logs <commands file>
          Removes the log directory and exits
 
+  --remove-lock <commands file>
+         Removes lock for this run.  
+
   --version | -v
          Prints version and exits.
 
@@ -187,6 +202,11 @@ restart=0
 batch_jobid=$(get_job_id)
 
 PERNODE=0
+
+flag_status=0
+flag_list=0
+flag_lock=0
+flag_logs=0
 
 # read in the input parameters
 numargs=$#
@@ -216,29 +236,39 @@ while [ $counter -le $numargs ]; do
 
 	"--status")
 	    # shows the current status, how many commands done 
-	    let "counter=$counter+1"
-            shift
-            id=$1
-	    showstatus $id
-	    exit 0
+	    #let "counter=$counter+1"
+            #shift
+            #id=$1
+	    #showstatus $id
+	    #exit 0
+	    flag_status=1
 	    ;;
 
         "--list")
             # lists all done  commands
-            let "counter=$counter+1"
-            shift
-            id=$1 
-            showlist $id
-            exit 0
+            #let "counter=$counter+1"
+            #shift
+            #id=$1 
+            #showlist $id
+            #exit 0
+	    flag_list=1
             ;;
 	"--remove-logs")
-	    let "counter=$counter+1"
-            shift
-            id=$1
-	    removelogs $id
-	    exit 0
+	    #let "counter=$counter+1"
+            #shift
+            #id=$1
+	    #removelogs $id
+	    #exit 0
+	    flag_logs=1
 	    ;;
-
+	"--remove-lock")
+            #let "counter=$counter+1"
+            #shift
+            #id=$1
+            #remove_lock $id
+            #exit 0
+	    flag_lock=1
+            ;;
         "--version")
             # prints version
             showversion
@@ -266,7 +296,9 @@ while [ $counter -le $numargs ]; do
                     # last element this must be the commands file
                 input=$1
             else
-                echo "Warning: flag not recognized: $1"
+                echo "Error: flag not recognized: $1"
+		echo "...exiting!"
+		exit 0
             fi
             ;;
     esac
@@ -301,6 +333,31 @@ donefile=${logdir}/done
 todofile=${logdir}/todo
 releasedfile=${logdir}/released
 nodelistfile=${logdir}/node_list
+lockfile=${logdir}/00_LOCK
+
+
+     
+
+if [ ${flag_status} -eq 1 ]; then
+    showstatus
+    exit 0
+fi
+
+if [ ${flag_list} -eq 1 ]; then
+    showlist
+    exit 0
+fi
+
+if [ ${flag_logs} -eq 1 ]; then
+    removelogs
+    exit 0
+fi
+
+if [ ${flag_lock} -eq 1 ]; then
+    removelock
+    exit 0
+fi
+
 
 num_nodes=$(get_num_nodes)
 
@@ -308,7 +365,7 @@ num_nodes=$(get_num_nodes)
 # if no restart, just remove the logdir
 if (( $restart < 0 )); then
     echo "Warning: --norestart specified: removing logs."
-    rm -rf ${logdir}
+    removelogs
 fi
 
 pernodestring=""
@@ -322,8 +379,19 @@ fi
 write_mod_log
 
 # set up the directory structure and copy the commands file
-setupenv $logdir ${input}
+setupenv 
 
+# set the lock
+lockresult=$(checklock)
+if [ ${lockresult} -eq 0 ]; then
+    echo "Error: Lock found at ${lockfile}."
+    echo "Another tamulauncher run might be processing the same commands. If you"
+    echo "think this is a mistake, remove the lock using the --remove_lock flag."
+    exit 0
+fi
+
+# next is to set a trap handler.Whenever the script exits the lock will be released
+trap releaselock EXIT ERR
 
 num_commands=`wc -l  $commandsfile | cut -d"." -f1`
 
@@ -347,7 +415,7 @@ node_list=`sed -n 1~2p ${logdir}/node_list`
 node_list=$(echo $node_list|tr -d '\n')
 
 
-createtodo #$logdir ${node_list}
+createtodo 
 
 done_commands=`cat ${logdir}/done ${logdir}/log* | wc -l`
 
@@ -393,8 +461,8 @@ then
 
 	# once this point is reached, all commands have been executed.
         # time to kill the background process that releases cores
-	kill ${RELEASED_JOB_ID} >& /dev/null
-	
+	kill_command ${RELEASED_JOB_ID} 
+       
 	echo "...All commands have been executed. Exiting now!"
     fi
 else
@@ -406,6 +474,8 @@ else
     echo "==========================================================="
 fi
 
+# don't forget to remove the lock
+removelock
 
 exitcode=$?
 

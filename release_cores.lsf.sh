@@ -15,7 +15,8 @@ batch_jobid="$3"
 tasks_per_node="$4"
 
 
-sleeptime=2
+sleeptime=710
+
 masternode=`hostname`
 
 numnodes=0;

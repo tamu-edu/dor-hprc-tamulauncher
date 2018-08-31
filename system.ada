@@ -69,4 +69,9 @@ function write_mod_log()
 }
 
 
-
+function kill_command()
+{
+    local jobid=$1 
+    echo "killing job with PID=${jobid}"
+    kill -- -$(ps -o pgid= ${jobid} | grep -o [0-9]*)
+}
