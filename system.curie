@@ -72,3 +72,9 @@ function write_mod_log()
            echo "`date +%H%M%S` $USER using $mod from $HOSTNAME:$PWD - (LSF: ${jobid} ${jobname}) - /software/easybuild/modules/all/$mod" >> $modlog
         done
 }
+
+
+function set_cluster_specific_env()
+{
+   # nothing to do here
+}

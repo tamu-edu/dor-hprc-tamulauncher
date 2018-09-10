@@ -75,3 +75,10 @@ function kill_command()
     echo "killing job with PID=${jobid}"
     kill -- -$(ps -o pgid= ${jobid} | grep -o [0-9]*)
 }
+	     
+	     
+function set_cluster_specific_env()
+{
+   # Nothing Todo Here
+}
+	     

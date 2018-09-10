@@ -57,9 +57,6 @@ setupenv() {
     # remove the todo file from previous runs
     rm -f ${todofile}.* 
 
-    # remoce the released file from previous run
-    rm -f ${releasedfile}.*
-
 }
 
 showversion() {
@@ -83,6 +80,7 @@ showstatus() {
 }
 
 showlist() {
+    echo "logdir=${logdir}"
     if [  -d $logdir ]; then
         # make sure there is a commands file and log files
         if [ -f ${commandsfile}  ]; then
@@ -221,7 +219,6 @@ while [ $counter -le $numargs ]; do
             PERNODE=$1
             check_pernode
             ;;
-	
         "-p")
             # shift the argument list to get the next element
             let "counter=$counter+1"
@@ -229,44 +226,21 @@ while [ $counter -le $numargs ]; do
             PERNODE=$1
             check_pernode
             ;;
-
 	"--norestart")
 	    restart=-1
 	    ;;
-
 	"--status")
 	    # shows the current status, how many commands done 
-	    #let "counter=$counter+1"
-            #shift
-            #id=$1
-	    #showstatus $id
-	    #exit 0
 	    flag_status=1
 	    ;;
-
         "--list")
             # lists all done  commands
-            #let "counter=$counter+1"
-            #shift
-            #id=$1 
-            #showlist $id
-            #exit 0
 	    flag_list=1
             ;;
 	"--remove-logs")
-	    #let "counter=$counter+1"
-            #shift
-            #id=$1
-	    #removelogs $id
-	    #exit 0
 	    flag_logs=1
 	    ;;
 	"--remove-lock")
-            #let "counter=$counter+1"
-            #shift
-            #id=$1
-            #remove_lock $id
-            #exit 0
 	    flag_lock=1
             ;;
         "--version")
@@ -334,7 +308,7 @@ todofile=${logdir}/todo
 releasedfile=${logdir}/released
 nodelistfile=${logdir}/node_list
 lockfile=${logdir}/00_LOCK
-
+releasefile=<TAMULAUNCHERBASE>/tamulauncher-src/release_script.sh
 
      
 
@@ -376,7 +350,7 @@ fi
 
 
 # also need to write to the LSF/SLURM mod logs
-write_mod_log
+#write_mod_log
 
 # set up the directory structure and copy the commands file
 setupenv 
@@ -411,11 +385,14 @@ create_node_task_files "${nodelistfile}"
 
 currentdir=`pwd`
 
-node_list=`sed -n 1~2p ${logdir}/node_list`
+node_list=`sed -n 1~2p ${nodelistfile}`
 node_list=$(echo $node_list|tr -d '\n')
 
 
 createtodo 
+
+# set cluster specifc environment, right now only used for slurm
+set_cluster_specific_env
 
 done_commands=`cat ${logdir}/done ${logdir}/log* | wc -l`
 
@@ -423,47 +400,40 @@ done_commands=`cat ${logdir}/done ${logdir}/log* | wc -l`
 
 MPISTRING="<PERNODE> 1 -np ${num_nodes}"
 # write to the log
-echo "${batch_jobid} : ${user} : ${date}  # ${MPISTRING}  ${logdir}   (`pwd`)" >> ${tamulauncherlog}
+tpn=${PERNODE}
+if [ $tpn -eq 0 ]; then
+    tpn=1
+fi
+echo "${batch_jobid} : ${user} : ${date}  # num_commands=${num_commands}, num_nodes=${num_nodes}, tasks_per_node=${tpn} #  ${logdir}   (`pwd`)" >> ${tamulauncherlog}
 
 
-#echo "done_commands=${done_commands}, num_commands=${num_commands}"
+
+echo "done_commands=${done_commands}, num_commands=${num_commands}"
 if [ ${done_commands} -lt ${num_commands} ];
 then
     if [ ${batch_jobid} -eq "000" ];
     then
-
 	# in this case it's run interactively. commands will be run in
 	# the foreground. If user wants to run it as a background process, 
 	# can add the & themselves.
 	
 	# command to execute
-	runcommand="${exec} ${pernodestring} --dirname ${logdir}"
+	runcommand="${exec} ${pernodestring} --dirname ${logdir} "
 	${runcommand} 
 
     else
-
 	# in this case it's run as a batch job. Will start a single OpenMP  process
 	# on every node, each process will indepently execute a subset of the commands
 
 	# first start a background process that periodically releases cores
         # that are not being used any more
-	<TAMULAUNCHERBASE>/tamulauncher-src/release_cores.sh "${nodelistfile}" "${releasedfile}" "${batch_jobid}" "${PERNODE}" &
-	RELEASED_JOB_ID=$!
-	
-	# use mpi to start individual processes, one per node
-	runcommand="${exec} ${pernodestring} --dirname ${logdir}"
 
-	echo "launching: ${launcher} ${MPISTRING} ${runcommand}"
-	export I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
+	runcommand="${exec} ${pernodestring} --dirname ${logdir} --releasescript ${releasefile}"
+	echo "srun --ntasks=${num_nodes} --ntasks-per-node 1 ${runcommand}"
+	srun  --ntasks ${num_nodes} --ntasks-per-node 1 ${runcommand} 
 
-	${launcher} ${MPISTRING} ${runcommand}
-
-
-	# once this point is reached, all commands have been executed.
-        # time to kill the background process that releases cores
-	kill_command ${RELEASED_JOB_ID} 
-       
-	echo "...All commands have been executed. Exiting now!"
+	hn=`hostname`
+	echo "${hn}: ...All commands have been executed. Exiting now!"
     fi
 else
     echo "==========================================================="
@@ -474,9 +444,8 @@ else
     echo "==========================================================="
 fi
 
-# don't forget to remove the lock
-removelock
 
-exitcode=$?
+
+
 
 

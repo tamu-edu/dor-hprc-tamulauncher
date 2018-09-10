@@ -43,6 +43,7 @@ int main(int argc, char** argv) {
 
   int num_tasks_per_node = 0;
   string dirname;
+  string releasescript;
 
   // iterate over all the arguments
   int arg_count=1;
@@ -54,6 +55,9 @@ int main(int argc, char** argv) {
     } else if (next_command == "--dirname") {
       ++arg_count;
       dirname= argv[arg_count];
+    } else if (next_command == "--releasescript") { 
+      ++arg_count;
+      releasescript= argv[arg_count];
     }else {
       std::cout << "unrecognized flag: " << next_command << std::endl;
     }
@@ -112,19 +116,22 @@ int main(int argc, char** argv) {
     }
     
     
+    if ( ! releasescript.empty() ) {
 #pragma omp critical (release)
-    {
-      string release_file_name = dirname+"/released."+hostname;
-      std::ofstream release_file;
-      release_file.open(release_file_name,std::fstream::app);
-      release_file << local_index << " released\n";
-      release_file.close();
-      //std::cerr << hostname << " released, thread=" << omp_get_thread_num() << " out of " << omp_get_num_threads() << "\n";
+      {
+	string release_string = releasescript + "  " + hostname + " " + dirname + " 0 ";
+	system(release_string.c_str());
+      }
     }
   }
   
-  
-  
+  if ( ! releasescript.empty() ) {
+    // all commands have been finished, call the release script one more time
+    string release_string = releasescript + "  "  + hostname + " " + dirname + " 1 ";
+    system(release_string.c_str());
+  }
+
+  return 0;
 }
 
 

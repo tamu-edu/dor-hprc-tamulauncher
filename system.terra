@@ -93,3 +93,23 @@ function write_mod_log()
         done
 }
 
+
+
+function kill_command()
+{
+    local jobid=$1
+    echo "killing job with PID=${jobid}"
+    kill -- -$(ps -o pgid= ${jobid} | grep -o [0-9]*)
+}
+
+function set_cluster_specific_env()
+{
+  # for slurm we use a file named RUNNING.<hostname> for
+  # every process that is still running. It will be used
+  # to determine to release nodes
+
+  for hostname in ${node_list}; do
+        touch ${logdir}/RUNNING.${hostname}
+    done
+   
+}
