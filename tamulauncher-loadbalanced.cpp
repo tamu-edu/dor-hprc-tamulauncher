@@ -89,22 +89,26 @@ int main(int argc, char** argv) {
   // job file than --tasks-per-node, need to adjust. NOTE, this should only be an
   // issue when #tasks cannot be divided by #nodes. With SLURM the --tasks-per-node
   // is not needed, not sure how to deal with it. TODO? 
-  int num=get_tasks_per_node(hostname,dirname);
+  int total_cores_per_node=get_tasks_per_node(hostname,dirname);
   if (num_tasks_per_node == 0) {
-    num_tasks_per_node=num;
-  } else if (num_tasks_per_node > num){
+    num_tasks_per_node=total_cores_per_node;
+  } else if (num_tasks_per_node > total_cores_per_node){
     printf("... WARNING: tamulauncer --commands-per-node = %d but only %d cores per node requested in batch job. Adjusting commands per node.\n",
-	   num_tasks_per_node,num);
-    num_tasks_per_node=num;
+	   num_tasks_per_node,total_cores_per_node);
+    num_tasks_per_node=total_cores_per_node;
   }
   
   int global_command_index=num_tasks_per_node;
   int num_commands = commands.num_commands();
+  int num_threads_left=0;
+
 #pragma omp parallel num_threads(num_tasks_per_node)
   {
     
+    num_threads_left=num_tasks_per_node;
     int local_index= omp_get_thread_num();
-    
+    int task_id=omp_get_thread_num();
+
     while (local_index < num_commands) {
       run_command_type& next_command = commands.command_at(local_index);
       next_command.execute();
@@ -119,15 +123,20 @@ int main(int argc, char** argv) {
     if ( ! releasescript.empty() ) {
 #pragma omp critical (release)
       {
-	string release_string = releasescript + "  " + hostname + " " + dirname + " 0 ";
-	system(release_string.c_str());
+	--num_threads_left;
+	if (num_threads_left > 0) {
+	  string release_string = releasescript + "  " + hostname + " " + dirname + " " + std::to_string(task_id) +
+	    " " + std::to_string(num_tasks_per_node) + " " + std::to_string(total_cores_per_node);
+	  system(release_string.c_str());
+	}
       }
     }
   }
   
   if ( ! releasescript.empty() ) {
     // all commands have been finished, call the release script one more time
-    string release_string = releasescript + "  "  + hostname + " " + dirname + " 1 ";
+    string release_string = releasescript + "  "  + hostname + " " + dirname + " -1 " +
+      " " + std::to_string(num_tasks_per_node) + " " + std::to_string(total_cores_per_node);
     system(release_string.c_str());
   }
 

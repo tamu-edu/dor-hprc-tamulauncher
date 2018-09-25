@@ -31,7 +31,7 @@ marker=$3
 
 
 # check if this script is called when a core or a node is released
-if [ $marker -eq 0 ]; then
+if [ $marker -gt -1 ]; then
     # on slurm can only release whole nodes so just exit
     exit 0
 fi

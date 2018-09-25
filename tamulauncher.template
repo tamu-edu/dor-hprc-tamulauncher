@@ -428,10 +428,12 @@ then
 	# first start a background process that periodically releases cores
         # that are not being used any more
 
+	export TAMULAUNCHERHOST=`hostname`
 	runcommand="${exec} ${pernodestring} --dirname ${logdir} --releasescript ${releasefile}"
-	echo "srun --ntasks=${num_nodes} --ntasks-per-node 1 ${runcommand}"
-	srun  --ntasks ${num_nodes} --ntasks-per-node 1 ${runcommand} 
-
+	#echo "srun --ntasks=${num_nodes} --ntasks-per-node 1 ${runcommand}"
+	#srun  --ntasks ${num_nodes} --ntasks-per-node 1 ${runcommand} 
+	echo "${launcher} ${tasksflag} ${num_nodes} ${taskspernodeflag} 1 ${runcommand}"
+	${launcher} ${tasksflag} ${num_nodes} ${taskspernodeflag} 1 ${runcommand}
 	hn=`hostname`
 	echo "${hn}: ...All commands have been executed. Exiting now!"
     fi

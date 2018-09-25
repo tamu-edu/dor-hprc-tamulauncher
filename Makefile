@@ -37,20 +37,20 @@ tamulauncher-loadbalanced.x: $(SRC)
 	@ $(COMPILER) $(GCCLIBS) $(OMPLIBS) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^
 
 doada:
-	cp system.ada system.sh;
+	cp system.ada.sh system.sh;
 	cp release_script.lsf.sh  release_script.sh;
 
 ada: tamulauncher-loadbalanced.x doada scripts
 
 doterra:
-	cp system.terra system.sh
+	cp system.terra.sh system.sh
 	cp release_script.slurm.sh release_script.sh
 
 terra: tamulauncher-loadbalanced.x doterra scripts
 
 
 docurie:
-	cp system.curie system.sh
+	cp system.curie.sh system.sh
 	cp release_script.lsf.sh release_script.sh
 
 curie: tamulauncher-loadbalanced.x docurie scripts
