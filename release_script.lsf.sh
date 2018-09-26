@@ -53,6 +53,9 @@ else
     #echo "releasing single core: bresize release ${cores_per_command}*${hostname} ${LSB_JOBID}"
     bresize release ${cores_per_command}*${hostname} ${LSB_JOBID}
 fi
+
+# add a pause so the bresize command has a chance to finish 
+sleep 7
 	    
 
 

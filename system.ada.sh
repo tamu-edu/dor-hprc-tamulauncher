@@ -92,9 +92,9 @@ function set_cluster_specific_env()
        appname=`echo ${LSB_APPLICATION_NAME}`
        if [ "${appname}" != "resizable" ]; then
 	   echo ""
-	   echo "Warning: this tamulauncher run will not dynamically release unused resources."
-	   echo " To enable add \"#BSUB -app resizable\" to your batch script."
-	   echo " For more information: https://hprc.tamu.edu/wiki/SW:tamulauncher#Dynamic_release_of_resources"
+	   echo "WARNING: this tamulauncher run will not dynamically release unused resources."
+	   echo "To enable add \"#BSUB -app resizable\" to your batch script."
+	   echo "For more information: https://hprc.tamu.edu/wiki/SW:tamulauncher#Dynamic_release_of_resources"
 	   echo
        fi
    fi

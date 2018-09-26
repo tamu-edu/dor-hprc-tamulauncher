@@ -43,7 +43,7 @@ setupenv() {
     mkdir -p ${logdir}
     if [ ! -f ${commandsfile} ]; then
 	cp ${input} ${logdir}/
-	ln -s ${input} ${commandsfile}
+	cp ${input} ${commandsfile}
     fi
 
     # create/update the done file
