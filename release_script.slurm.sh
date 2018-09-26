@@ -3,7 +3,7 @@
 # expect two parameters:
 #     1) the hostname
 #     2) location of logdir
-#     3) marker 0=core 1=node
+#     3) marker > -1 =core -1=node
 
 # this process can run on multiple nodes concurrently, we need to be
 # careful that two processes are not trying to release at the same time
@@ -64,7 +64,7 @@ rm RUNNING.${hostname}
 
 
 # step 4:
-# wait few more seconds, so every that arrived  
+# wait few more seconds, so every instance  that arrived  
 # around same time has a chance to create the lock
 sleep 2
 
