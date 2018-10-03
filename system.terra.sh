@@ -13,7 +13,7 @@ interactive=8
 #         I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0, newer impi versions do
 # NOTE 2: there is an issue with mpiexec.hydra: it doesn't propagate
 #         ulimits to remote nodes.
-launcher=srun
+launcher="srun --export=ALL"
 tasksflag=--ntasks
 taskspernodeflag=--ntasks-per-node
 
