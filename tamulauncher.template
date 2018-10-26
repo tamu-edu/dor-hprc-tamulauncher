@@ -5,8 +5,8 @@ source <INCLUDE>
 
 createtodo() {
 
+    
     local doneindices=`cut -d" " -f1 $donefile | sort -n`
-
     # add 1 to total_commands to reflect eof
     let "indices_size=$num_commands+1"
    
@@ -80,7 +80,6 @@ showstatus() {
 }
 
 showlist() {
-    echo "logdir=${logdir}"
     if [  -d $logdir ]; then
         # make sure there is a commands file and log files
         if [ -f ${commandsfile}  ]; then
@@ -210,6 +209,7 @@ flag_logs=0
 numargs=$#
 counter=1
 
+
 while [ $counter -le $numargs ]; do
     case $1 in
         "--commands-pernode")
@@ -269,7 +269,7 @@ while [ $counter -le $numargs ]; do
             if (( $counter == $numargs )); then
                     # last element this must be the commands file
                 input=$1
-            else
+	    else
                 echo "Error: flag not recognized: $1"
 		echo "...exiting!"
 		exit 0
@@ -281,6 +281,7 @@ while [ $counter -le $numargs ]; do
     let "counter=$counter+1"
     shift
 done
+
 
 #check if input file was provided
 if [ -z "$input" ];
@@ -375,21 +376,15 @@ num_commands=`wc -l  $commandsfile | cut -d"." -f1`
 create_node_task_files "${nodelistfile}"
 
 
-# start one process per node. Will not use mpi anymore since mpi tasks are not
-# killed after finalize (might need to check if spawned tasks are killed after
-# they finish). For now, will just start individual processes on all nodes.
-# Only caveat is that need to start all processes in background. This script
-# will monitor when all processes have finished. Once that is the case, script 
-# can exit.
-
-
 currentdir=`pwd`
 
 node_list=`sed -n 1~2p ${nodelistfile}`
 node_list=$(echo $node_list|tr -d '\n')
 
 
+
 createtodo 
+
 
 # set cluster specifc environment, right now only used for slurm
 set_cluster_specific_env
@@ -445,6 +440,7 @@ else
     echo "run tamulauncher with --norestart option."
     echo "==========================================================="
 fi
+
 
 
 

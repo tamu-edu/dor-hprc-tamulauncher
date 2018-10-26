@@ -108,17 +108,21 @@ int main(int argc, char** argv) {
     num_threads_left=num_tasks_per_node;
     int local_index= omp_get_thread_num();
     int task_id=omp_get_thread_num();
-
+    
     while (local_index < num_commands) {
       run_command_type& next_command = commands.command_at(local_index);
       next_command.execute();
       logger.write_log(next_command);
       
       // get next index to process
-#pragma omp atomic capture
-      local_index=global_command_index++;
-    }
-    
+      //#pragma omp atomic capture
+#pragma omp critical(update)
+      {
+	
+	local_index=global_command_index++;
+	//std::cout << "thread= "<<task_id<<",  local_index="<<local_index<<",   num_commands="<<num_commands<< std::endl;
+      }
+    }    
     
     if ( ! releasescript.empty() ) {
 #pragma omp critical (release)
@@ -139,9 +143,9 @@ int main(int argc, char** argv) {
       " " + std::to_string(num_tasks_per_node) + " " + std::to_string(total_cores_per_node);
     system(release_string.c_str());
   }
-
-  return 0;
+  
+    return 0;
 }
-
+  
 
 
