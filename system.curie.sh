@@ -16,6 +16,10 @@ interactive=8
 launcher=<MPIRUN>
 
 
+# these flags are specific to mpich. When using OpenMPI would be -np and -nperhost
+tasksflag=-np
+taskspernodeflag=-ppn
+
 #path to executable
 exec=<TAMULAUNCHERBASE>/tamulauncher-src/tamulauncher-loadbalanced.x
 
@@ -76,5 +80,7 @@ function write_mod_log()
 
 function set_cluster_specific_env()
 {
+   echo ""
    # nothing to do here
 }
+

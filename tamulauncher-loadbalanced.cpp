@@ -68,8 +68,14 @@ int main(int argc, char** argv) {
   char th[100];
   gethostname(th,100);
   std::string hostname(th);
-
-
+  
+  // TODO for now check for -lpar is hardcoded here. Need to move
+  // it to different library function, will be cleaner
+  size_t pos = hostname.find("-lpar");
+  if (pos != std::string::npos) {
+     hostname.erase(pos);
+  }
+  
   string filename=dirname+"/todo."+hostname;
   commands_type commands(filename);
 

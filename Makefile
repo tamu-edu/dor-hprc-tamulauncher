@@ -12,7 +12,6 @@ ada terra: GCCLIBS=-Xlinker --disable-new-dtags -Xlinker -rpath -Xlinker $(EBROO
 ada terra: OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/lib/intel64 
 ada terra: CXXFLAGS=-std=c++0x -qopenmp
 ada terra: OPT=-O3  -g
-ada terra: PERNODE=-perhost
 ada terra: COMPILER=icpc
 
 #DEFINE MPICXX GCCLIB OMPLIBS CXXFLAGS OPT for curie
@@ -21,7 +20,6 @@ curie: GCCLIBS=-Wl,--disable-new-dtags -Wl,-rpath -Wl,$(EBROOTGCCCORE)/lib64
 curie: OMPLIBS=
 curie: CXXFLAGS=-std=c++14 -fopenmp
 curie: OPT=-O2 -g
-curie: PERNODE=-npernode
 curie: COMPILER=g++
 
 SRC=run_command_type.cpp commands_type.cpp tamulauncher-loadbalanced.cpp logger_type.cpp 
@@ -64,7 +62,6 @@ scripts:
 	sed -i "s|<INCLUDE>|`dirname ${PWD}`/tamulauncher-src/system.sh|" tamulauncher;
 	sed -i "s|<CHECKOLD>|`dirname ${PWD}`/tamulauncher-src/check_classic.sh|" tamulauncher;
 	sed -i "s|<VERSION>|`cat version_string`|" tamulauncher;
-	sed -i "s|<PERNODE>|${PERNODE}|" tamulauncher;
 	sed -i "s|<TAMULAUNCHERBASE>|`dirname ${PWD}`|" tamulauncher
 versionmessage:
 	@echo

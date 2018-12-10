@@ -393,7 +393,7 @@ done_commands=`cat ${logdir}/done ${logdir}/log* | wc -l`
 
 
 
-MPISTRING="<PERNODE> 1 -np ${num_nodes}"
+MPISTRING="${taskspernodeflag} 1 ${tasksflag} ${num_nodes}"
 # write to the log
 tpn=${PERNODE}
 if [ $tpn -eq 0 ]; then
