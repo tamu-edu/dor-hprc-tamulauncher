@@ -361,7 +361,7 @@ lockresult=$(checklock)
 if [ ${lockresult} -eq 0 ]; then
     echo "Error: Lock found at ${lockfile}."
     echo "Another tamulauncher run might be processing the same commands. If you"
-    echo "think this is a mistake, remove the lock using the --remove_lock flag."
+    echo "think this is a mistake, remove the lock using the --remove-lock flag."
     exit 0
 fi
 
