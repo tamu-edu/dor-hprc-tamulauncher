@@ -7,12 +7,12 @@
 # define MPICXX GCCLIB OMPLIBS CXXFLAGS OPT for ada and terra 
 #ada terra: MPICXX=`mpiicpc -show | sed -r 's/-Xlinker --enable-new-dtags//'`
 # need to hardcode the GCC library path (if not might conflict with system GCC)
-ada terra: GCCLIBS=-Xlinker --disable-new-dtags -Xlinker -rpath -Xlinker $(EBROOTGCCCORE)/lib64 
+ada terra grace: GCCLIBS=-Xlinker --disable-new-dtags -Xlinker -rpath -Xlinker $(EBROOTGCCCORE)/lib64 
 # need to hardcode the intel omp5 library path since it's not in the default path
-ada terra: OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/lib/intel64 
-ada terra: CXXFLAGS=-std=c++0x -qopenmp
-ada terra: OPT=-O3  -g
-ada terra: COMPILER=icpc
+ada terra grace: OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/lib/intel64 
+ada terra grace: CXXFLAGS=-std=c++0x -qopenmp
+ada terra grace: OPT=-O3  -g
+ada terra grace: COMPILER=icpc
 
 #DEFINE MPICXX GCCLIB OMPLIBS CXXFLAGS OPT for curie
 curie: MPICXX=`mpic++ --show | sed -r 's/-Wl,--enable-new-dtags//'`
@@ -46,6 +46,11 @@ doterra:
 
 terra: tamulauncher-loadbalanced.x doterra scripts
 
+dograce:
+	cp system.grace.sh system.sh
+	cp release_script.slurm.sh release_script.sh
+
+grace: tamulauncher-loadbalanced.x doterra scripts
 
 docurie:
 	cp system.curie.sh system.sh
