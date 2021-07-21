@@ -39,6 +39,19 @@ fi
 # go to the log directory
 cd ${logdir}
 
+# first check if release script is called from head node.
+# If that is the case return immediately
+
+
+echo "hostname=${hostname}"
+echo "TAMULAUNCHERHOST=${TAMULAUNCHERHOST}"
+if [ ${hostname} = ${TAMULAUNCHERHOST} ];
+then
+   echo "Master node finished, not releasing "
+   exit 0
+fi
+
+
 
 lockfile=RELEASELOCK
 
