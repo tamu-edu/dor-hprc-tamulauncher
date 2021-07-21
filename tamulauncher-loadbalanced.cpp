@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
 
   int num_tasks_per_node = 0;
   string dirname;
-  string releasescript;
+  string releasescript = "";
 
   // iterate over all the arguments
   int arg_count=1;

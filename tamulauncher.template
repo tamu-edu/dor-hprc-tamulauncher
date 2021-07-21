@@ -176,7 +176,10 @@ OPTIONS:
          Removes the log directory and exits
 
   --remove-lock <commands file>
-         Removes lock for this run.  
+         Removes lock for this run.
+
+  --norelease-resources  
+         do NOT release resources when this task is finished
 
   --version | -v
          Prints version and exits.
@@ -204,6 +207,7 @@ flag_status=0
 flag_list=0
 flag_lock=0
 flag_logs=0
+release_resources=1
 
 # read in the input parameters
 numargs=$#
@@ -242,6 +246,9 @@ while [ $counter -le $numargs ]; do
 	    ;;
 	"--remove-lock")
 	    flag_lock=1
+            ;;
+        "--norelease-resources")
+            release_resources=0;
             ;;
         "--version")
             # prints version
@@ -424,7 +431,11 @@ then
         # that are not being used any more
 
 	export TAMULAUNCHERHOST=`hostname`
-	runcommand="${exec} ${pernodestring} --dirname ${logdir} --releasescript ${releasefile}"
+        releasescript=""
+        if [ $release_resources -eq 1 ]; then
+           releasescript="--releasescript ${releasefile}"
+        fi
+	runcommand="${exec} ${pernodestring} --dirname ${logdir} ${releasescript}"
 	#echo "srun --ntasks=${num_nodes} --ntasks-per-node 1 ${runcommand}"
 	#srun  --ntasks ${num_nodes} --ntasks-per-node 1 ${runcommand} 
 	echo "${launcher} ${tasksflag} ${num_nodes} ${taskspernodeflag} 1 ${runcommand}"
