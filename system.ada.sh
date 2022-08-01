@@ -1,3 +1,4 @@
+# NOT BEING USED ANYMORE
 
 # this file contains functions to retrieve information
 # from batch run (e.g. number of procs) and defines some
