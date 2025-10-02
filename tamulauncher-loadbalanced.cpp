@@ -98,10 +98,14 @@ int main(int argc, char** argv) {
   int total_cores_per_node=get_tasks_per_node(hostname,dirname);
   if (num_tasks_per_node == 0) {
     num_tasks_per_node=total_cores_per_node;
-  } else if (num_tasks_per_node > total_cores_per_node){
-    printf("... WARNING: tamulauncer --commands-per-node = %d but only %d cores per node requested in batch job. Adjusting commands per node.\n",
-	   num_tasks_per_node,total_cores_per_node);
-    num_tasks_per_node=total_cores_per_node;
+  } else if (num_tasks_per_node > total_cores_per_node) {
+     if  (total_cores_per_node > 1) {
+        // on TAMU clusters, Slurm jobs enforce cpu limits, therefore tasks per node set to 1 
+        // and cpus-per-tasks is total_cores_per_node, so num_tasks_per_node always > total_cores_per_node
+        // Adding addditional condition to avoid this become a problem
+        // TODO ideally there should be check to make sure cpus-per-task > num_tasks_per_node 
+        num_tasks_per_node=total_cores_per_node;
+     }
   }
   
   int global_command_index=num_tasks_per_node;
