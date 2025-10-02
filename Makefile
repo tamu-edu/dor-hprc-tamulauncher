@@ -9,8 +9,8 @@
 # need to hardcode the GCC library path (if not might conflict with system GCC)
 ada terra grace aces: GCCLIBS=-Xlinker --disable-new-dtags -Xlinker -rpath -Xlinker $(EBROOTGCCCORE)/lib64 
 # need to hardcode the intel omp5 library path since it's not in the default path
-aces: OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/compiler/2023.1.0/linux/compiler/lib/intel64_lin
-ada terra grace: OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/lib/intel64 
+grace faster aces: OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/compiler/2023.1.0/linux/compiler/lib/intel64_lin
+#ada terra grace: OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/lib/intel64 
 ada terra grace aces: CXXFLAGS=-std=c++0x -qopenmp
 ada terra grace aces: OPT=-O3  -g
 ada terra grace aces: COMPILER=icpc
