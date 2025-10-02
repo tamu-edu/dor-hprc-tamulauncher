@@ -7,13 +7,13 @@
 # define MPICXX GCCLIB OMPLIBS CXXFLAGS OPT for ada and terra 
 #ada terra: MPICXX=`mpiicpc -show | sed -r 's/-Xlinker --enable-new-dtags//'`
 # need to hardcode the GCC library path (if not might conflict with system GCC)
-ada terra grace aces: GCCLIBS=-Xlinker --disable-new-dtags -Xlinker -rpath -Xlinker $(EBROOTGCCCORE)/lib64 
+grace faster aces: GCCLIBS=-Xlinker --disable-new-dtags -Xlinker -rpath -Xlinker $(EBROOTGCCCORE)/lib64 
 # need to hardcode the intel omp5 library path since it's not in the default path
-grace faster aces: OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/compiler/2023.1.0/linux/compiler/lib/intel64_lin
+grace faster aces: OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/compiler/$(EBVERSIONIMKL)/linux/compiler/lib/intel64_lin
 #ada terra grace: OMPLIBS=-Xlinker -rpath -Xlinker $(EBROOTIMKL)/lib/intel64 
-ada terra grace aces: CXXFLAGS=-std=c++0x -qopenmp
-ada terra grace aces: OPT=-O3  -g
-ada terra grace aces: COMPILER=icpc
+grace faster aces: CXXFLAGS=-std=c++0x -qopenmp
+grace faster aces: OPT=-O3  -g
+grace faster aces: COMPILER=icpc
 
 #DEFINE MPICXX GCCLIB OMPLIBS CXXFLAGS OPT for curie
 curie: MPICXX=`mpic++ --show | sed -r 's/-Wl,--enable-new-dtags//'`
@@ -35,17 +35,12 @@ tamulauncher-loadbalanced.x: $(SRC)
 	@echo "$(COMPILER) $(GCCLIBS) $(OMPLIBS) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^"
 	@ $(COMPILER) $(GCCLIBS) $(OMPLIBS) $(CXXFLAGS) -Iinclude $(OPT)  -o $@ $^
 
-doada:
-	cp system.ada.sh system.sh;
-	cp release_script.lsf.sh  release_script.sh;
 
-ada: tamulauncher-loadbalanced.x doada scripts
-
-doterra:
-	cp system.terra.sh system.sh
+dofaster:
+	cp system.faster.sh system.sh
 	cp release_script.slurm.sh release_script.sh
 
-terra: tamulauncher-loadbalanced.x doterra scripts
+faster: tamulauncher-loadbalanced.x dofaster scripts
 
 dograce:
 	cp system.grace.sh system.sh
@@ -59,11 +54,6 @@ doaces:
 
 aces: tamulauncher-loadbalanced.x doaces scripts
 
-docurie:
-	cp system.curie.sh system.sh
-	cp release_script.lsf.sh release_script.sh
-
-curie: tamulauncher-loadbalanced.x docurie scripts
 
 scripts:
 	sed -i "s|<MPIRUN>|`which mpirun`|" system.sh;
