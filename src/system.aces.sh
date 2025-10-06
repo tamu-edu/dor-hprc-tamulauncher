@@ -1,0 +1,117 @@
+
+# this file contains functions to retrieve information
+# from batch run (e.g. number of procs) and defines some 
+# variables and paths
+
+#max number of cores per node
+maxppn=96
+interactive=8
+
+# define the mpi lancher. Still has to be mpiexec.hydra right now
+# if use mpirun will complain cannot find mpiexec.hydra.
+# NOTE 1: before had to use mpiexec.hydra because mpirun didn't
+#         I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0, newer impi versions do
+# NOTE 2: there is an issue with mpiexec.hydra: it doesn't propagate
+#         ulimits to remote nodes.
+launcher="srun --export=ALL"
+tasksflag=--ntasks
+taskspernodeflag=--ntasks-per-node
+
+
+#path to executable
+exec=<TAMULAUNCHERBASE>/src/tamulauncher-loadbalanced.x
+
+#path to log file
+tamulauncherlog=<TAMULAUNCHERBASE>/log/tamulauncher.log
+
+
+function get_job_id() 
+{
+	local myresult=${SLURM_JOB_ID}
+	if [ -z "$myresult" ]; then
+           # in this case it's run on login node, set jobid to 000
+	   myresult=000
+        fi   
+	echo "$myresult"
+}	
+
+
+function get_num_nodes()
+{
+       local myresult=${SLURM_NNODES}
+       if [ -z "${myresult}" ]; then  
+          myresult=1
+       fi
+       echo "${myresult}"
+}
+
+
+# this function creates a file with hostname #tasks, separated by \n
+function create_node_task_files()
+{ 
+	filename=$1	
+	local nlist=""
+        if [ -z "$SLURM_JOB_ID" ]; then
+          hname=`hostname`
+          for i in `seq ${interactive}`; do nlist="${hname} ${nlist}";done
+        else
+           local nlist=`srun /usr/bin/hostname  | sort | tr "\n" " " | sed -e "s/ $//g"`
+        fi
+        # now we have a list of nodes, will count them and print out host #count
+        current=`echo $nlist | cut -d" " -f1`
+        echo $current > $filename
+        count=0
+        for hn in $nlist; do
+            if [ "$hn" == "$current" ]; then
+               let "count=$count+1"
+            else
+                echo "$count" >> $filename
+                echo "$hn" >> $filename
+                current=$hn
+                count=1
+           fi
+        done
+        echo $count >> $filename
+}
+
+
+function write_mod_log()
+{
+	local jobid=${SLURM_JOBID}
+	local jobname=${SLURM_JOB_NAME}
+	if [ -z "$jobid" ]; then
+	   jobid=None
+	   jobname=None
+	fi
+
+        modlog=/sw/lmod/hprc/logs/`date +%Y%m%d`
+
+        # log message format from: /sw/lmod/hprc/mods/hprc_sp_log_modules.lua
+        # local msg   = string.format("%s %s %s from %s:%s - \(Slurm: %s %s\) - %s", user, mode, t.modFullName, host, pwd, jobid, jobfile, t.fn)
+        # cmd = "echo `date +%H%M%S` '" .. msg .. "' >> "..logfile..""
+
+        for mod in <GCCCOREMODULE> <MPIMODULE> ; do
+           echo "`date +%H%M%S` $USER using $mod from $HOSTNAME:$PWD - (Slurm: ${jobid} ${jobname}) - /sw/eb/mods/all/$mod" >> $modlog
+        done
+}
+
+
+
+function kill_command()
+{
+    local jobid=$1
+    echo "killing job with PID=${jobid}"
+    kill -- -$(ps -o pgid= ${jobid} | grep -o [0-9]*)
+}
+
+function set_cluster_specific_env()
+{
+  # for slurm we use a file named RUNNING.<hostname> for
+  # every process that is still running. It will be used
+  # to determine to release nodes
+
+  for hostname in ${node_list}; do
+        touch ${logdir}/RUNNING.${hostname}
+    done
+   
+}
