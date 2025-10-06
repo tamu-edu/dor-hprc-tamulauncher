@@ -22,9 +22,8 @@ does not work, because number of threads will be limited to 1, essentially seria
 
 Solution:
 
---nodes=N, --tasks-per-node=1 --cpus-per-task=TC*T
-
-tamulauncher --commands-per-node=T
+   --nodes=N, --tasks-per-node=1 --cpus-per-task=TC*T
+   tamulauncher --commands-per-node=T
 
 Tamulauncher is modularized, where system specifics are defined in system files (e.g., system.aces.sh). This file specifies the number of cores per node and functions to retrieve submission parameters. If tamulauncher is installed on a new system, probably need to create a new systems file and update the Makefile
 
