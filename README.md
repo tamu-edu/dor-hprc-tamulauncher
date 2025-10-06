@@ -27,12 +27,12 @@ Solution:
 
 Tamulauncher is modularized, where system specifics are defined in system files (e.g., system.aces.sh). This file specifies the number of cores per node and functions to retrieve submission parameters. If tamulauncher is installed on a new system, probably need to create a new systems file and update the Makefile
 
-Important files:
-run_many_instances.cpp --> performs actual execution of commands.
+Important files:<br>
+run_many_instances.cpp --> performs actual execution of commands.<br>
 tamulauncher --> partitions input based on #procs and restart
 
-Building for cluster <target>:
-run make clean <target> install
+Building for cluster <target>:<br>
+run make clean <target> install<br>
 Will compile the c++ file and copy the files to ../bin
 
 
